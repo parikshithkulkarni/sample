@@ -1,3 +1,5 @@
 Hello this is xyz file
 
 changing again
+
+git diff --staged
