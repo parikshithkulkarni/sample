@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { CheckCircle, XCircle, AlertCircle, RefreshCw, ExternalLink, ArrowRight } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { CheckCircle, XCircle, AlertCircle, RefreshCw, ExternalLink, ArrowRight, Copy, Check } from 'lucide-react';
 import Link from 'next/link';
 
-interface Check {
+interface EnvVar {
   key: string;
   label: string;
   hint: string;
@@ -12,19 +12,44 @@ interface Check {
 }
 
 interface SetupStatus {
-  vars: Check[];
+  vars: EnvVar[];
   dbReady: boolean;
   dbError: string;
   allRequired: boolean;
   ready: boolean;
 }
 
-const SERVICE_LINKS: Record<string, string> = {
-  ANTHROPIC_API_KEY: 'https://console.anthropic.com/settings/keys',
-  VOYAGE_API_KEY: 'https://dash.voyageai.com',
-  DATABASE_URL: 'https://neon.tech',
-  TAVILY_API_KEY: 'https://tavily.com',
+const SERVICE_LINKS: Record<string, { url: string; cta: string }> = {
+  ANTHROPIC_API_KEY:  { url: 'https://console.anthropic.com/settings/keys',  cta: 'Get key' },
+  VOYAGE_API_KEY:     { url: 'https://dash.voyageai.com',                     cta: 'Get key' },
+  DATABASE_URL:       { url: 'https://neon.tech',                             cta: 'Create DB' },
+  TAVILY_API_KEY:     { url: 'https://app.tavily.com',                        cta: 'Get key' },
 };
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback: select text
+    }
+  }, [text]);
+
+  return (
+    <button
+      onClick={copy}
+      className="flex items-center gap-1 font-mono text-xs bg-gray-100 hover:bg-gray-200 active:bg-gray-300 px-2 py-0.5 rounded transition-colors"
+      title="Tap to copy"
+    >
+      {copied ? <Check size={10} className="text-emerald-600" /> : <Copy size={10} className="text-gray-400" />}
+      <span className={copied ? 'text-emerald-600' : 'text-gray-700'}>{copied ? 'Copied!' : text}</span>
+    </button>
+  );
+}
 
 export default function SetupPage() {
   const [status, setStatus] = useState<SetupStatus | null>(null);
@@ -45,13 +70,13 @@ export default function SetupPage() {
   const done = status?.ready;
 
   return (
-    <div className="p-4 pt-6 pb-24">
+    <div className="p-4 pt-6 pb-24 max-w-lg mx-auto">
       <div className="mb-6">
         <h1 className="text-xl font-bold text-gray-900">Setup</h1>
-        <p className="text-sm text-gray-500 mt-1">Configure your Second Brain before first use</p>
+        <p className="text-sm text-gray-500 mt-1">Get your Second Brain running in ~10 minutes</p>
       </div>
 
-      {/* Overall status banner */}
+      {/* Status banner */}
       {status && (
         <div className={`rounded-2xl p-4 mb-6 flex items-center gap-3 ${done ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'}`}>
           {done
@@ -59,7 +84,7 @@ export default function SetupPage() {
             : <AlertCircle size={22} className="text-amber-500 shrink-0" />}
           <div>
             <p className={`font-semibold text-sm ${done ? 'text-emerald-800' : 'text-amber-800'}`}>
-              {done ? 'Everything is configured — you\'re good to go!' : 'Complete the steps below to activate your Second Brain'}
+              {done ? "You're all set — Second Brain is ready!" : 'Complete the steps below to go live'}
             </p>
             {done && (
               <Link href="/" className="text-xs text-emerald-700 underline mt-0.5 inline-block">
@@ -70,24 +95,21 @@ export default function SetupPage() {
         </div>
       )}
 
-      {/* Step 1 — Deploy to Vercel */}
-      <section className="mb-6">
-        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Step 1 — Deploy</h2>
+      {/* Step 1 — Deploy */}
+      <section className="mb-5">
+        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Step 1 — Deploy to Vercel</h2>
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
-          <p className="text-sm text-gray-700">
-            Push this repo to GitHub, then import it on Vercel. Vercel detects Next.js automatically — no config needed.
-          </p>
           <ol className="space-y-2 text-sm text-gray-600 list-decimal list-inside">
-            <li>Go to <span className="font-mono bg-gray-100 px-1 rounded text-xs">vercel.com/new</span></li>
-            <li>Import the <span className="font-mono bg-gray-100 px-1 rounded text-xs">parikshithkulkarni/sample</span> repo</li>
-            <li>Add environment variables (Step 2 below)</li>
-            <li>Click <strong>Deploy</strong> — done</li>
+            <li>Open <strong>vercel.com/new</strong></li>
+            <li>Import <CopyButton text="parikshithkulkarni/sample" /></li>
+            <li>Add env vars from Step 2 below</li>
+            <li>Click <strong>Deploy</strong> — every future push auto-deploys</li>
           </ol>
           <a
             href="https://vercel.com/new"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 w-full justify-center bg-black text-white rounded-xl py-2.5 text-sm font-medium"
+            className="flex items-center gap-2 w-full justify-center bg-black text-white rounded-xl py-3 text-sm font-semibold"
           >
             Open Vercel <ExternalLink size={14} />
           </a>
@@ -95,7 +117,7 @@ export default function SetupPage() {
       </section>
 
       {/* Step 2 — Env vars */}
-      <section className="mb-6">
+      <section className="mb-5">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Step 2 — Environment Variables</h2>
           <button onClick={load} disabled={loading} className="flex items-center gap-1 text-xs text-sky-600">
@@ -103,37 +125,43 @@ export default function SetupPage() {
           </button>
         </div>
 
+        <p className="text-xs text-gray-500 mb-3">
+          Tap any variable name to copy it. Paste into Vercel → Settings → Environment Variables.
+        </p>
+
         <div className="space-y-2">
           {status?.vars.map((v) => (
-            <div key={v.key} className={`bg-white rounded-2xl px-4 py-3 shadow-sm border flex items-start gap-3 ${v.ok ? 'border-emerald-100' : 'border-gray-100'}`}>
+            <div
+              key={v.key}
+              className={`bg-white rounded-2xl px-4 py-3 shadow-sm border flex items-start gap-3 ${v.ok ? 'border-emerald-100' : 'border-gray-100'}`}
+            >
               {v.ok
                 ? <CheckCircle size={18} className="text-emerald-500 shrink-0 mt-0.5" />
                 : <XCircle size={18} className="text-red-400 shrink-0 mt-0.5" />}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-xs text-gray-700 font-semibold">{v.key}</span>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <CopyButton text={v.key} />
                   {SERVICE_LINKS[v.key] && !v.ok && (
-                    <a href={SERVICE_LINKS[v.key]} target="_blank" rel="noopener noreferrer"
-                      className="shrink-0 text-xs text-sky-600 flex items-center gap-0.5">
-                      Get key <ExternalLink size={10} />
+                    <a
+                      href={SERVICE_LINKS[v.key].url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-xs text-sky-600 flex items-center gap-0.5 font-medium"
+                    >
+                      {SERVICE_LINKS[v.key].cta} <ExternalLink size={10} />
                     </a>
                   )}
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">{v.hint}</p>
+                <p className="text-xs text-gray-500 mt-1">{v.hint}</p>
               </div>
             </div>
           ))}
         </div>
 
-        {/* How to add env vars in Vercel */}
         {status && !status.allRequired && (
           <div className="mt-3 bg-sky-50 border border-sky-100 rounded-2xl p-4">
-            <p className="text-xs font-semibold text-sky-800 mb-2">How to add env vars in Vercel:</p>
-            <ol className="text-xs text-sky-700 space-y-1 list-decimal list-inside">
-              <li>Project dashboard → Settings → Environment Variables</li>
-              <li>Add each variable above</li>
-              <li>Redeploy (Deployments → Redeploy)</li>
-            </ol>
+            <p className="text-xs font-semibold text-sky-800 mb-1">How to add in Vercel:</p>
+            <p className="text-xs text-sky-700">Project → Settings → Environment Variables → paste name + value → Save → Redeploy</p>
           </div>
         )}
       </section>
@@ -147,26 +175,39 @@ export default function SetupPage() {
             : <AlertCircle size={18} className="text-amber-400 shrink-0 mt-0.5" />}
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-800">
-              {status?.dbReady ? 'Database ready' : 'Database not migrated yet'}
+              {status?.dbReady ? 'Database schema ready' : 'Database not set up yet'}
             </p>
-            {status?.dbError && <p className="text-xs text-amber-600 mt-0.5">{status.dbError}</p>}
-            {!status?.dbReady && (
-              <p className="text-xs text-gray-500 mt-1">
-                Tables are created <strong>automatically</strong> on first app startup. Just make sure <span className="font-mono bg-gray-100 px-1 rounded">DATABASE_URL</span> is set and the <strong>pgvector</strong> extension is enabled in your Neon project (Settings → Extensions → enable <span className="font-mono bg-gray-100 px-1 rounded">vector</span>).
-              </p>
-            )}
+            {status?.dbError
+              ? <p className="text-xs text-amber-600 mt-0.5">{status.dbError}</p>
+              : !status?.dbReady && (
+                <div className="text-xs text-gray-500 mt-1 space-y-1">
+                  <p>1. Sign up at <a href="https://neon.tech" target="_blank" rel="noopener noreferrer" className="text-sky-600 underline">neon.tech</a> → New Project → copy the connection string</p>
+                  <p>2. In your Neon project: <strong>Settings → Extensions → enable <CopyButton text="vector" /></strong></p>
+                  <p>3. Paste the connection string as <CopyButton text="DATABASE_URL" /> in Vercel</p>
+                  <p className="text-emerald-700 font-medium mt-1">✓ Tables create automatically on first deploy — no SQL to run</p>
+                </div>
+              )}
           </div>
         </div>
       </section>
 
-      {/* Done */}
-      {done && (
+      {/* Done CTA */}
+      {done ? (
         <Link
           href="/"
           className="flex items-center justify-center gap-2 w-full bg-sky-600 text-white rounded-2xl py-4 text-sm font-semibold"
         >
           Open Second Brain <ArrowRight size={16} />
         </Link>
+      ) : (
+        <button
+          onClick={load}
+          disabled={loading}
+          className="flex items-center justify-center gap-2 w-full bg-gray-100 text-gray-600 rounded-2xl py-4 text-sm font-medium"
+        >
+          <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+          Check status
+        </button>
       )}
     </div>
   );

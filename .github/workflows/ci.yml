@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  typecheck:
+    name: Type check & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+        env:
+          # Stub values so Next.js build doesn't fail on missing env vars
+          ANTHROPIC_API_KEY: stub
+          VOYAGE_API_KEY: stub
+          DATABASE_URL: postgresql://stub:stub@stub/stub
+          NEXTAUTH_SECRET: stub-secret-for-ci-only
+          ADMIN_USERNAME: stub
+          ADMIN_PASSWORD: stub
+          NEXTAUTH_URL: http://localhost:3000
