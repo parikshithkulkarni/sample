@@ -4,7 +4,9 @@ interface Check {
   key: string;
   label: string;
   hint: string;
+  link?: string;
   ok: boolean;
+  required: boolean;
 }
 
 // Public route — no auth so it works before credentials are set
@@ -14,43 +16,39 @@ export async function GET() {
       key: 'ANTHROPIC_API_KEY',
       label: 'Anthropic API Key',
       hint: 'Get free credits at console.anthropic.com → API Keys',
+      link: 'https://console.anthropic.com/settings/keys',
       ok: !!process.env.ANTHROPIC_API_KEY,
-    },
-    {
-      key: 'VOYAGE_API_KEY',
-      label: 'Voyage AI API Key',
-      hint: 'Free tier at dash.voyageai.com — needed for document embeddings',
-      ok: !!process.env.VOYAGE_API_KEY,
-    },
-    {
-      key: 'DATABASE_URL',
-      label: 'Neon Postgres URL',
-      hint: 'Free at neon.tech → New Project → Connection string. Enable pgvector: Settings → Extensions.',
-      ok: !!process.env.DATABASE_URL,
-    },
-    {
-      key: 'NEXTAUTH_SECRET',
-      label: 'NextAuth Secret',
-      hint: 'Any random string — generate with: openssl rand -base64 32',
-      ok: !!process.env.NEXTAUTH_SECRET,
+      required: true,
     },
     {
       key: 'ADMIN_USERNAME',
       label: 'Admin Username',
-      hint: 'Your login username (e.g. "admin")',
+      hint: 'Your login username — set to anything (e.g. "admin")',
       ok: !!process.env.ADMIN_USERNAME,
+      required: true,
     },
     {
       key: 'ADMIN_PASSWORD',
       label: 'Admin Password',
       hint: 'Your login password — choose something strong',
       ok: !!process.env.ADMIN_PASSWORD,
+      required: true,
+    },
+    {
+      key: 'DATABASE_URL',
+      label: 'Postgres Database',
+      hint: 'Add via Vercel Dashboard → Storage → Create → Postgres. Sets DATABASE_URL automatically.',
+      link: 'https://vercel.com/dashboard',
+      ok: !!process.env.DATABASE_URL,
+      required: true,
     },
     {
       key: 'TAVILY_API_KEY',
-      label: 'Tavily API Key (optional)',
-      hint: 'Free 1000 searches/month at tavily.com — enables live web search in chat',
+      label: 'Tavily Web Search (optional)',
+      hint: 'Free 1000 searches/month at app.tavily.com — enables live web search in chat',
+      link: 'https://app.tavily.com',
       ok: !!process.env.TAVILY_API_KEY,
+      required: false,
     },
   ];
 
@@ -60,20 +58,19 @@ export async function GET() {
   if (process.env.DATABASE_URL) {
     try {
       await sql`SELECT 1`;
-      // Check if tables exist
       const tables = await sql`
         SELECT tablename FROM pg_tables
         WHERE schemaname = 'public'
         AND tablename IN ('documents','chunks','deadlines','properties','accounts')
       `;
       dbReady = (tables as { tablename: string }[]).length >= 5;
-      if (!dbReady) dbError = 'Connected but schema not migrated yet — will auto-run on first request.';
+      if (!dbReady) dbError = 'Connected — schema will be created on first request.';
     } catch (e) {
       dbError = e instanceof Error ? e.message : 'Connection failed';
     }
   }
 
-  const allRequired = vars.slice(0, 6).every((v) => v.ok);
+  const allRequired = vars.filter((v) => v.required).every((v) => v.ok);
 
   return Response.json({ vars, dbReady, dbError, allRequired, ready: allRequired && dbReady });
 }

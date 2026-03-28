@@ -29,9 +29,7 @@ jobs:
         env:
           # Stub values so Next.js build doesn't fail on missing env vars
           ANTHROPIC_API_KEY: stub
-          VOYAGE_API_KEY: stub
           DATABASE_URL: postgresql://stub:stub@stub/stub
-          NEXTAUTH_SECRET: stub-secret-for-ci-only
           ADMIN_USERNAME: stub
           ADMIN_PASSWORD: stub
           NEXTAUTH_URL: http://localhost:3000

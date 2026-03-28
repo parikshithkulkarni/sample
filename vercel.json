@@ -5,12 +5,8 @@
   "outputDirectory": ".next",
   "env": {
     "ANTHROPIC_API_KEY": "@anthropic-api-key",
-    "VOYAGE_API_KEY": "@voyage-api-key",
-    "DATABASE_URL": "@database-url",
-    "NEXTAUTH_SECRET": "@nextauth-secret",
     "ADMIN_USERNAME": "@admin-username",
-    "ADMIN_PASSWORD": "@admin-password",
-    "TAVILY_API_KEY": "@tavily-api-key"
+    "ADMIN_PASSWORD": "@admin-password"
   },
   "headers": [
     {

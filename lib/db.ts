@@ -8,9 +8,6 @@ export const sql = neon(process.env.DATABASE_URL!);
 export async function runMigrations() {
   if (!process.env.DATABASE_URL) return;
 
-  // pgvector extension (required for vector(512) columns)
-  await sql`CREATE EXTENSION IF NOT EXISTS vector`;
-
   // Documents — stores ingested files
   await sql`
     CREATE TABLE IF NOT EXISTS documents (
@@ -23,22 +20,20 @@ export async function runMigrations() {
     )
   `;
 
-  // Chunks — text segments with 512-dim Voyage AI embeddings
+  // Chunks — text segments with auto-generated full-text search vector (no API key needed)
   await sql`
     CREATE TABLE IF NOT EXISTS chunks (
       id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
       chunk_index INTEGER NOT NULL,
       content     TEXT NOT NULL,
-      embedding   vector(512)
+      tsv         TSVECTOR GENERATED ALWAYS AS (to_tsvector('english', content)) STORED
     )
   `;
 
-  // IVFFlat index for fast cosine search (only if column exists and index absent)
+  // GIN index for fast full-text search
   await sql`
-    CREATE INDEX IF NOT EXISTS chunks_embedding_idx
-    ON chunks USING ivfflat (embedding vector_cosine_ops)
-    WITH (lists = 100)
+    CREATE INDEX IF NOT EXISTS chunks_tsv_idx ON chunks USING GIN(tsv)
   `;
 
   // Deadlines — tax dates, visa milestones, property deadlines

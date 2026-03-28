@@ -21,5 +21,6 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   session: { strategy: 'jwt' },
-  secret: process.env.NEXTAUTH_SECRET,
+  // Fall back to ADMIN_PASSWORD so NEXTAUTH_SECRET is not a required env var
+  secret: process.env.NEXTAUTH_SECRET ?? process.env.ADMIN_PASSWORD,
 };
