@@ -63,7 +63,7 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
     e.preventDefault();
     const expenses: Record<string, number> = {};
     EXPENSE_KEYS.forEach((k) => {
-      const v = parseFloat((form as Record<string, string>)[k] ?? '0');
+      const v = parseFloat(String((form as Record<string, unknown>)[k] ?? '0'));
       if (v > 0) expenses[k] = v;
     });
 
@@ -186,7 +186,7 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
             <p className="text-xs text-gray-500 font-medium">Expenses</p>
             <div className="grid grid-cols-2 gap-2">
               {EXPENSE_KEYS.map((k) => (
-                <input key={k} type="number" value={(form as Record<string, string>)[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} placeholder={`${k.replace('_', ' ')} ($)`} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none" />
+                <input key={k} type="number" value={String((form as Record<string, unknown>)[k] ?? '')} onChange={(e) => setForm({ ...form, [k]: e.target.value })} placeholder={`${k.replace('_', ' ')} ($)`} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none" />
               ))}
             </div>
             <button type="submit" className="w-full bg-sky-600 text-white rounded-xl py-2.5 text-sm font-medium">Save</button>

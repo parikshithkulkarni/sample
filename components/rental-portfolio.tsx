@@ -15,7 +15,7 @@ interface Property {
   notes: string | null;
 }
 
-interface Record {
+interface RentalRecord {
   year: number;
   month: number;
   rent_collected: number;
@@ -51,12 +51,12 @@ export default function RentalPortfolio() {
       const all = await Promise.all(
         properties.map(async (p) => {
           const res = await fetch(`/api/rentals/${p.id}/records?year=${selectedYear}`);
-          const records: Record[] = await res.json();
+          const records: RentalRecord[] = await res.json();
 
           const annualRent = records.reduce((s, r) => s + Number(r.rent_collected), 0);
           const annualMortgage = records.reduce((s, r) => s + Number(r.mortgage_pmt), 0);
           const annualExpenses = records.reduce((s, r) => {
-            const expSum = Object.values(r.expenses as Record<string, number>).reduce((a, b) => a + b, 0);
+            const expSum = Object.values(r.expenses).reduce((a: number, b) => a + Number(b), 0);
             return s + expSum;
           }, 0);
           const noi = annualRent - annualExpenses;
