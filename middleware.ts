@@ -9,6 +9,6 @@ export const config = {
      * - /favicon.ico
      * - static files
      */
-    '/((?!api/auth|_next/static|_next/image|favicon.ico).*)',
+    '/((?!api/auth|api/setup|setup|_next/static|_next/image|favicon.ico).*)',
   ],
 };
