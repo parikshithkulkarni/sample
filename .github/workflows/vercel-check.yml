@@ -1,8 +1,7 @@
-name: Check & Fix Vercel Config
+name: Check Vercel Config
 on:
   push:
-    paths:
-      - '.github/workflows/vercel-check.yml'
+    paths: ['.github/workflows/vercel-check.yml']
   workflow_dispatch:
 
 jobs:
@@ -10,38 +9,45 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      issues: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch Vercel config and write results
+      - name: Fetch and report Vercel config
         env:
           PROJECT_ID: prj_VnBon0ELOZsVdI7RYKomupBXHZpq
+          GH_TOKEN: ${{ github.token }}
         run: |
           VT=$(echo 'dmNwXzdRUFZCT3J2WjdFQXVsWk9pM29Lc01rUUpaNGFQR1FtaHZOYktQbFl6UjY0Qm0wY050ME1VejJ3' | base64 -d)
-          curl -s "https://api.vercel.com/v9/projects/$PROJECT_ID" \
-            -H "Authorization: Bearer $VT" > /tmp/project.json
-          curl -s "https://api.vercel.com/v9/projects/$PROJECT_ID/env" \
-            -H "Authorization: Bearer $VT" > /tmp/envs.json
-          python3 - <<'PYEOF'
+
+          curl -sf "https://api.vercel.com/v9/projects/$PROJECT_ID" \
+            -H "Authorization: Bearer $VT" -o /tmp/project.json || echo '{"error":"project fetch failed"}' > /tmp/project.json
+
+          curl -sf "https://api.vercel.com/v9/projects/$PROJECT_ID/env" \
+            -H "Authorization: Bearer $VT" -o /tmp/envs.json || echo '{"error":"env fetch failed","envs":[]}' > /tmp/envs.json
+
+          RESULT=$(python3 - <<'PYEOF'
 import json
-proj = json.loads(open('/tmp/project.json').read())
-envs_raw = json.loads(open('/tmp/envs.json').read())
-result = {
-  'projectName': proj.get('name'),
-  'repo': proj.get('link',{}).get('org','?') + '/' + proj.get('link',{}).get('repo','?'),
-  'branch': proj.get('link',{}).get('productionBranch','?'),
-  'envVarKeys': [e['key'] for e in envs_raw.get('envs',[])],
-  'hasDatabaseUrl': any(e['key']=='DATABASE_URL' for e in envs_raw.get('envs',[])),
-  'hasAnthropicKey': any(e['key']=='ANTHROPIC_API_KEY' for e in envs_raw.get('envs',[])),
-}
-with open('vercel-debug.json', 'w') as f:
-    json.dump(result, f, indent=2)
+try:
+    proj = json.loads(open('/tmp/project.json').read())
+    envs_raw = json.loads(open('/tmp/envs.json').read())
+    result = {
+      'projectName': proj.get('name', proj.get('error','?')),
+      'repo': proj.get('link',{}).get('org','?') + '/' + proj.get('link',{}).get('repo','?'),
+      'branch': proj.get('link',{}).get('productionBranch','?'),
+      'envVarKeys': [e['key'] for e in envs_raw.get('envs',[])],
+      'hasDatabaseUrl': any(e['key']=='DATABASE_URL' for e in envs_raw.get('envs',[])),
+      'hasAnthropicKey': any(e['key']=='ANTHROPIC_API_KEY' for e in envs_raw.get('envs',[])),
+    }
+except Exception as ex:
+    result = {'error': str(ex)}
 print(json.dumps(result, indent=2))
 PYEOF
+          )
 
-      - name: Commit results
-        run: |
-          git config user.email 'actions@github.com'
-          git config user.name 'GitHub Actions'
-          git add vercel-debug.json
-          git diff --staged --quiet || (git commit -m 'chore: vercel debug results' && git push)
+          echo "Results: $RESULT"
+
+          gh issue create \
+            --title "[vercel-debug] $(date -u +%Y-%m-%dT%H:%M)" \
+            --body "$RESULT" \
+            --repo parikshithkulkarni/sample
