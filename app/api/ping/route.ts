@@ -1,4 +1,4 @@
-// Public diagnostic endpoint — no auth, safe to expose
+// Public diagnostic + migration trigger endpoint — no auth, safe to expose
 export async function GET() {
   const dbUrl = process.env.DATABASE_URL;
   const result: Record<string, unknown> = {

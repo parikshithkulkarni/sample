@@ -28,25 +28,52 @@ export default function DocumentList({ refresh = 0 }: Props) {
   const [docs, setDocs] = useState<Doc[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState('');
+  const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
-    setFetchError('');
-    fetch('/api/documents')
-      .then((r) => r.json())
-      .then((data) => {
+    let cancelled = false;
+    async function load(attempt = 0) {
+      try {
+        const r = await fetch('/api/documents');
+        const data = await r.json();
+        if (cancelled) return;
         if (Array.isArray(data)) {
+          setFetchError('');
+          setRetrying(false);
           setDocs(data);
+        } else if (attempt < 5) {
+          // DB not ready yet — retry with backoff (migrations may be running)
+          setRetrying(true);
+          setTimeout(() => { if (!cancelled) load(attempt + 1); }, 2000 * (attempt + 1));
         } else {
-          setFetchError(data?.error ?? 'Unknown error loading documents');
+          setRetrying(false);
+          setFetchError(data?.error ?? 'Database unavailable');
         }
-      })
-      .catch((e) => setFetchError(e?.message ?? 'Failed to fetch'));
+      } catch {
+        if (cancelled) return;
+        if (attempt < 5) {
+          setRetrying(true);
+          setTimeout(() => { if (!cancelled) load(attempt + 1); }, 2000 * (attempt + 1));
+        } else {
+          setRetrying(false);
+          setFetchError('Could not reach server');
+        }
+      }
+    }
+    setFetchError('');
+    setRetrying(false);
+    load();
+    return () => { cancelled = true; };
   }, [refresh]);
 
   async function remove(id: string) {
     if (!confirm('Delete this document and all its indexed chunks?')) return;
     await fetch(`/api/documents/${id}`, { method: 'DELETE' });
     setDocs((prev) => prev.filter((d) => d.id !== id));
+  }
+
+  if (retrying) {
+    return <p className="text-center text-gray-400 text-sm py-6 animate-pulse">Setting up database…</p>;
   }
 
   if (fetchError) {

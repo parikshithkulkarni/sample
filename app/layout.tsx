@@ -3,6 +3,7 @@ import './globals.css';
 import Nav from '@/components/nav';
 import CaptureModal from '@/components/capture-modal';
 import AuthProvider from '@/components/auth-provider';
+import DbWarmer from '@/components/db-warmer';
 
 export const metadata: Metadata = {
   title: 'Second Brain',
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <AuthProvider>
+          <DbWarmer />
           <main className="max-w-lg mx-auto min-h-screen pb-20">
             {children}
           </main>
