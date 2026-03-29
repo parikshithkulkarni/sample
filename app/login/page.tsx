@@ -126,6 +126,11 @@ function LoginForm() {
           {loading ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
+
+      <p className="text-center text-xs text-gray-400 mt-4">
+        First time?{' '}
+        <a href="/setup" className="text-sky-600 underline">Set up your account</a>
+      </p>
     </div>
   );
 }
