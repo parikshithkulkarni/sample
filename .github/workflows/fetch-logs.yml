@@ -1,5 +1,7 @@
 name: Fetch Vercel Logs
 on:
+  push:
+    branches: [master]
   workflow_dispatch:
 
 jobs:
@@ -14,6 +16,9 @@ jobs:
           TEAM='team_tQfsBQstANQimeYqRMKPp1F6'
           PROJ='prj_VnBonOELOZsVdI7RYKomupBXHZpq'
 
+          # Wait a bit for deployment to start
+          sleep 30
+
           # Get latest deployment
           DEPID=$(curl -sf "https://api.vercel.com/v6/deployments?teamId=$TEAM&projectId=$PROJ&limit=1" \
             -H "Authorization: Bearer $VT" | python3 -c "import sys,json; d=json.load(sys.stdin)['deployments'][0]; print(d['uid'])")
@@ -21,27 +26,28 @@ jobs:
           echo "Deployment: $DEPID"
 
           # Get build/runtime logs
-          curl -sf "https://api.vercel.com/v2/deployments/$DEPID/events?teamId=$TEAM&limit=100" \
-            -H "Authorization: Bearer $VT" > /tmp/events.json
+          curl -sf "https://api.vercel.com/v2/deployments/$DEPID/events?teamId=$TEAM&limit=200" \
+            -H "Authorization: Bearer $VT" > /tmp/events.json || echo '[]' > /tmp/events.json
 
-          # Extract error lines
-          ERRORS=$(python3 -c "
-import json, sys
+          # Extract all log lines
+          LOGS=$(python3 -c "
+import json
 events = json.load(open('/tmp/events.json'))
 lines = []
 for e in events:
-    t = e.get('type','')
     payload = e.get('payload', {})
     if isinstance(payload, dict):
         text = payload.get('text', '')
-    else:
-        text = str(payload)
-    if text:
-        lines.append(f'[{t}] {text}')
-print('\\n'.join(lines[-100:]))
-" 2>&1 | head -c 8000)
+        if text:
+            lines.append(text)
+print(chr(10).join(lines[-150:]))
+" 2>&1 | head -c 12000)
 
           gh issue create \
             --title "[logs] $(date -u +%H:%M:%S)" \
-            --body "$ERRORS" \
+            --body "Deployment: $DEPID
+
+\`\`\`
+$LOGS
+\`\`\`" \
             --repo parikshithkulkarni/sample

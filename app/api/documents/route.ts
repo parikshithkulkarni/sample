@@ -45,19 +45,32 @@ export async function POST(req: Request) {
     await runMigrations();
   } catch { /* non-fatal */ }
 
-  const formData = await req.formData();
-  const file = formData.get('file') as File | null;
-  const tagsRaw = (formData.get('tags') as string | null) ?? '';
+  let file: File | null = null;
+  let tags: string[] = [];
+  let buffer: Buffer;
 
-  if (!file) return Response.json({ error: 'No file provided' }, { status: 400 });
+  try {
+    const formData = await req.formData();
+    file = formData.get('file') as File | null;
+    const tagsRaw = (formData.get('tags') as string | null) ?? '';
+    tags = tagsRaw.split(',').map((t) => t.trim()).filter(Boolean);
 
-  const tags = tagsRaw
-    .split(',')
-    .map((t) => t.trim())
-    .filter(Boolean);
+    if (!file) return Response.json({ error: 'No file provided' }, { status: 400 });
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const { documentId, chunkCount } = await ingestFile(buffer, file.name, file.type, tags);
+    buffer = Buffer.from(await file.arrayBuffer());
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return Response.json({ error: `Failed to read upload: ${msg}` }, { status: 400 });
+  }
+
+  let documentId: string;
+  let chunkCount: number;
+  try {
+    ({ documentId, chunkCount } = await ingestFile(buffer, file.name, file.type, tags));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return Response.json({ error: `Ingestion failed: ${msg}` }, { status: 500 });
+  }
 
   // Proactive insights — non-blocking best-effort
   try {
@@ -68,12 +81,7 @@ export async function POST(req: Request) {
       messages: [
         {
           role: 'user',
-          content: `Analyze this document excerpt and return ONLY valid JSON (no markdown, no explanation):
-{"summary":"one sentence summary","insights":["insight 1","insight 2","insight 3"]}
-
-Document: ${file.name}
----
-${textSample}`,
+          content: `Analyze this document excerpt and return ONLY valid JSON (no markdown, no explanation):\n{"summary":"one sentence summary","insights":["insight 1","insight 2","insight 3"]}\n\nDocument: ${file.name}\n---\n${textSample}`,
         },
       ],
     });
@@ -86,16 +94,10 @@ ${textSample}`,
       SET summary = ${parsed.summary}, insights = ${parsed.insights}
       WHERE id = ${documentId}
     `;
+  } catch { /* insights are optional */ }
 
-    const [doc] = await sql`
-      SELECT id, name, tags, summary, insights, added_at FROM documents WHERE id = ${documentId}
-    `;
-    return Response.json({ ...doc, chunkCount });
-  } catch {
-    // Return without insights if Claude call fails
-    const [doc] = await sql`
-      SELECT id, name, tags, summary, insights, added_at FROM documents WHERE id = ${documentId}
-    `;
-    return Response.json({ ...doc, chunkCount });
-  }
+  const [doc] = await sql`
+    SELECT id, name, tags, summary, insights, added_at FROM documents WHERE id = ${documentId}
+  `;
+  return Response.json({ ...doc, chunkCount });
 }
