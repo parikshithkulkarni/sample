@@ -13,12 +13,21 @@ export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return new Response('Unauthorized', { status: 401 });
 
-  const rows = await sql`
-    SELECT id, name, tags, summary, insights, added_at
-    FROM documents
-    ORDER BY added_at DESC
-  `;
-  return Response.json(rows);
+  if (!process.env.DATABASE_URL) {
+    return Response.json({ error: 'DATABASE_URL not set — connect a Postgres database in Vercel Storage' }, { status: 503 });
+  }
+
+  try {
+    const rows = await sql`
+      SELECT id, name, tags, summary, insights, added_at
+      FROM documents
+      ORDER BY added_at DESC
+    `;
+    return Response.json(rows);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return Response.json({ error: msg }, { status: 500 });
+  }
 }
 
 // POST /api/documents — upload + ingest a document
