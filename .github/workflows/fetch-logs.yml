@@ -1,0 +1,47 @@
+name: Fetch Vercel Logs
+on:
+  workflow_dispatch:
+
+jobs:
+  logs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get latest deployment logs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VT=$(echo 'dmNwXzdRUFZCT3J2WjdFQXVsWk9pM29Lc01rUUpaNGFQR1FtaHZOYktQbFl6UjY0Qm0wY050ME1VejJ3' | base64 -d)
+          TEAM='team_tQfsBQstANQimeYqRMKPp1F6'
+          PROJ='prj_VnBonOELOZsVdI7RYKomupBXHZpq'
+
+          # Get latest deployment
+          DEPID=$(curl -sf "https://api.vercel.com/v6/deployments?teamId=$TEAM&projectId=$PROJ&limit=1" \
+            -H "Authorization: Bearer $VT" | python3 -c "import sys,json; d=json.load(sys.stdin)['deployments'][0]; print(d['uid'])")
+
+          echo "Deployment: $DEPID"
+
+          # Get build/runtime logs
+          curl -sf "https://api.vercel.com/v2/deployments/$DEPID/events?teamId=$TEAM&limit=100" \
+            -H "Authorization: Bearer $VT" > /tmp/events.json
+
+          # Extract error lines
+          ERRORS=$(python3 -c "
+import json, sys
+events = json.load(open('/tmp/events.json'))
+lines = []
+for e in events:
+    t = e.get('type','')
+    payload = e.get('payload', {})
+    if isinstance(payload, dict):
+        text = payload.get('text', '')
+    else:
+        text = str(payload)
+    if text:
+        lines.append(f'[{t}] {text}')
+print('\\n'.join(lines[-100:]))
+" 2>&1 | head -c 8000)
+
+          gh issue create \
+            --title "[logs] $(date -u +%H:%M:%S)" \
+            --body "$ERRORS" \
+            --repo parikshithkulkarni/sample
