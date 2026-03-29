@@ -36,6 +36,11 @@ export default function DocumentUploader({ onUploaded }: Props) {
       const data = await res.json() as InsightResult;
       setResult(data);
       onUploaded(data);
+      // Kick off AI analysis in the background — updates the doc list when done
+      fetch(`/api/documents/${data.id}/analyze`, { method: 'POST' })
+        .then(r => r.ok ? r.json() : null)
+        .then(analyzed => { if (analyzed) { setResult(analyzed); onUploaded(analyzed); } })
+        .catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Upload failed');
     } finally {
