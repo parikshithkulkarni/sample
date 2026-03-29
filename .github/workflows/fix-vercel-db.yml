@@ -10,35 +10,42 @@ jobs:
     permissions:
       issues: write
     steps:
-      - name: Get projects and env vars
+      - name: Get Vercel projects and set DATABASE_URL
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           VT=$(echo 'dmNwXzdRUFZCT3J2WjdFQXVsWk9pM29Lc01rUUpaNGFQR1FtaHZOYktQbFl6UjY0Qm0wY050ME1VejJ3' | base64 -d)
+          curl -s "https://api.vercel.com/v9/projects?limit=20" -H "Authorization: Bearer $VT" > /tmp/projects.json
+          curl -s "https://api.vercel.com/v2/user" -H "Authorization: Bearer $VT" > /tmp/user.json
+          python3 /tmp/summarize.py > /tmp/summary.txt
+        shell: bash
 
-          # List all projects
-          ALL=$(curl -s "https://api.vercel.com/v9/projects?limit=20" -H "Authorization: Bearer $VT")
+      - name: Write Python script
+        run: |
+          cat > /tmp/summarize.py << 'PYEOF'
+          import json
+          lines = []
+          try:
+              me = json.load(open('/tmp/user.json'))
+              lines.append('USER: ' + me.get('user', {}).get('email', json.dumps(me)[:100]))
+          except Exception as e:
+              lines.append('USER ERROR: ' + str(e))
+          try:
+              d = json.load(open('/tmp/projects.json'))
+              for p in d.get('projects', []):
+                  lines.append(p['id'] + ' | ' + p['name'] + ' | ' + p.get('link',{}).get('repo','no-repo'))
+              if not d.get('projects'):
+                  lines.append('NO PROJECTS: ' + json.dumps(d)[:500])
+          except Exception as e:
+              lines.append('PROJECTS ERROR: ' + str(e))
+          print('\n'.join(lines))
+          PYEOF
 
-          # Get account info
-          ME=$(curl -s "https://api.vercel.com/v2/user" -H "Authorization: Bearer $VT")
-
-          SUMMARY=$(python3 - <<PYEOF
-import json
-try:
-    d = json.loads('''$ALL''')
-    me = json.loads('''$ME''')
-    lines = []
-    lines.append('USER: ' + me.get('user', {}).get('email', str(me)[:100]))
-    for p in d.get('projects', []):
-        lines.append(f"{p['id']} | {p['name']} | {p.get('link',{}).get('repo','no-repo')}")
-    if not d.get('projects'):
-        lines.append('NO PROJECTS: ' + str(d)[:300])
-    print('\n'.join(lines))
-except Exception as e:
-    print('ERROR:', e)
-    print('ALL:', '$ALL'[:300])
-PYEOF
-          )
-
-          echo "SUMMARY: $SUMMARY"
-          gh issue create --title "[vercel-list] $(date -u +%H:%M:%S)" --body "$SUMMARY" --repo parikshithkulkarni/sample
+      - name: Post results as issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create \
+            --title "[vercel-list] $(date -u +%H:%M:%S)" \
+            --body "$(cat /tmp/summary.txt)" \
+            --repo parikshithkulkarni/sample
