@@ -42,28 +42,28 @@ export async function POST(req: Request) {
     await runMigrations();
   } catch { /* non-fatal */ }
 
-  let file: File | null = null;
-  let tags: string[] = [];
+  let fileName: string;
+  let mimeType: string;
   let buffer: Buffer;
+  let tags: string[];
 
   try {
-    const formData = await req.formData();
-    file = formData.get('file') as File | null;
-    const tagsRaw = (formData.get('tags') as string | null) ?? '';
-    tags = tagsRaw.split(',').map((t) => t.trim()).filter(Boolean);
-
-    if (!file) return Response.json({ error: 'No file provided' }, { status: 400 });
-
-    buffer = Buffer.from(await file.arrayBuffer());
+    const body = await req.json() as { fileName: string; mimeType: string; base64: string; tags: string };
+    fileName = body.fileName;
+    mimeType = body.mimeType ?? 'text/plain';
+    tags = Array.isArray(body.tags)
+      ? body.tags
+      : (body.tags ?? '').split(',').map((t: string) => t.trim()).filter(Boolean);
+    buffer = Buffer.from(body.base64, 'base64');
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return Response.json({ error: `Failed to read upload: ${msg}` }, { status: 400 });
+    return Response.json({ error: `Failed to parse request: ${msg}` }, { status: 400 });
   }
 
   let documentId: string;
   let chunkCount: number;
   try {
-    ({ documentId, chunkCount } = await ingestFile(buffer, file.name, file.type, tags));
+    ({ documentId, chunkCount } = await ingestFile(buffer, fileName, mimeType, tags));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return Response.json({ error: `Ingestion failed: ${msg}` }, { status: 500 });

@@ -28,15 +28,17 @@ export default function DocumentUploader({ onUploaded }: Props) {
     setError('');
     setResult(null);
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('tags', tags);
-      const res = await fetch('/api/documents', { method: 'POST', body: fd });
+      const arrayBuffer = await file.arrayBuffer();
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+      const res = await fetch('/api/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: file.name, mimeType: file.type, base64, tags }),
+      });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json() as InsightResult;
       setResult(data);
       onUploaded(data);
-      // Kick off AI analysis in the background — updates the doc list when done
       fetch(`/api/documents/${data.id}/analyze`, { method: 'POST' })
         .then(r => r.ok ? r.json() : null)
         .then(analyzed => { if (analyzed) { setResult(analyzed); onUploaded(analyzed); } })
