@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Plus, Trash2, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, TrendingUp, Pencil, Check, X } from 'lucide-react';
 import { fmt } from '@/lib/utils';
 
 interface Property {
@@ -40,6 +40,8 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
   const [records, setRecords] = useState<RentalRecord[]>([]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [addingRecord, setAddingRecord] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ address: '', purchase_price: '', purchase_date: '', market_value: '', mortgage_balance: '', notes: '' });
   const [form, setForm] = useState({
     month: new Date().getMonth() + 1,
     rent_collected: '',
@@ -86,6 +88,41 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
     setAddingRecord(false);
   }
 
+  function startEdit() {
+    setEditForm({
+      address: property!.address,
+      purchase_price: property!.purchase_price != null ? String(property!.purchase_price) : '',
+      purchase_date: property!.purchase_date ?? '',
+      market_value: property!.market_value != null ? String(property!.market_value) : '',
+      mortgage_balance: property!.mortgage_balance != null ? String(property!.mortgage_balance) : '',
+      notes: property!.notes ?? '',
+    });
+    setEditing(true);
+  }
+
+  async function saveEdit() {
+    const res = await fetch(`/api/rentals/${propertyId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        address: editForm.address || undefined,
+        purchase_price: editForm.purchase_price ? parseFloat(editForm.purchase_price) : null,
+        purchase_date: editForm.purchase_date || null,
+        market_value: editForm.market_value ? parseFloat(editForm.market_value) : null,
+        mortgage_balance: editForm.mortgage_balance ? parseFloat(editForm.mortgage_balance) : null,
+        notes: editForm.notes || null,
+      }),
+    });
+    setProperty(await res.json());
+    setEditing(false);
+  }
+
+  async function deleteProperty() {
+    if (!confirm('Delete this property and all its records?')) return;
+    await fetch(`/api/rentals/${propertyId}`, { method: 'DELETE' });
+    router.replace('/rentals');
+  }
+
   if (!property) return <div className="p-4 text-gray-400 text-sm">Loading...</div>;
 
   const annualRent = records.reduce((s, r) => s + Number(r.rent_collected), 0);
@@ -111,10 +148,38 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
 
       {/* Property header */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-        <p className="font-semibold text-gray-800">{property.address}</p>
-        {property.purchase_price && <p className="text-xs text-gray-400 mt-0.5">Purchased for {fmt(Number(property.purchase_price))}</p>}
-        {property.market_value && <p className="text-xs text-gray-400">Current value: {fmt(Number(property.market_value))}</p>}
-        {property.mortgage_balance && <p className="text-xs text-gray-400">Mortgage balance: {fmt(Number(property.mortgage_balance))}</p>}
+        {editing ? (
+          <div className="space-y-2">
+            <input value={editForm.address} onChange={e => setEditForm({...editForm, address: e.target.value})} placeholder="Address" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+            <div className="grid grid-cols-2 gap-2">
+              <input type="number" value={editForm.purchase_price} onChange={e => setEditForm({...editForm, purchase_price: e.target.value})} placeholder="Purchase price" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+              <input type="date" value={editForm.purchase_date} onChange={e => setEditForm({...editForm, purchase_date: e.target.value})} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <input type="number" value={editForm.market_value} onChange={e => setEditForm({...editForm, market_value: e.target.value})} placeholder="Market value" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+              <input type="number" value={editForm.mortgage_balance} onChange={e => setEditForm({...editForm, mortgage_balance: e.target.value})} placeholder="Mortgage balance" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+            </div>
+            <input value={editForm.notes} onChange={e => setEditForm({...editForm, notes: e.target.value})} placeholder="Notes" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+            <div className="flex gap-2 pt-1">
+              <button onClick={saveEdit} className="flex items-center gap-1 text-sm text-emerald-600 font-medium"><Check size={15} /> Save</button>
+              <button onClick={() => setEditing(false)} className="flex items-center gap-1 text-sm text-gray-400"><X size={15} /> Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="flex items-start justify-between">
+              <p className="font-semibold text-gray-800">{property.address}</p>
+              <div className="flex gap-2 shrink-0 ml-2">
+                <button onClick={startEdit} className="text-gray-300 hover:text-sky-500"><Pencil size={15} /></button>
+                <button onClick={deleteProperty} className="text-gray-300 hover:text-red-400"><Trash2 size={15} /></button>
+              </div>
+            </div>
+            {property.purchase_price && <p className="text-xs text-gray-400 mt-0.5">Purchased for {fmt(Number(property.purchase_price))}{property.purchase_date ? ` · ${new Date(property.purchase_date + 'T00:00:00').toLocaleDateString('en-US', {month:'short',year:'numeric'})}` : ''}</p>}
+            {property.market_value && <p className="text-xs text-gray-400">Current value: {fmt(Number(property.market_value))}</p>}
+            {property.mortgage_balance && <p className="text-xs text-gray-400">Mortgage balance: {fmt(Number(property.mortgage_balance))}</p>}
+            {property.notes && <p className="text-xs text-gray-500 mt-1">{property.notes}</p>}
+          </div>
+        )}
       </div>
 
       {/* Year selector */}
