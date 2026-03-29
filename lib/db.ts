@@ -92,6 +92,16 @@ export async function runMigrations() {
       updated_at TIMESTAMPTZ DEFAULT now()
     )
   `;
+
+  // Admin users — stores hashed credentials so no env vars needed after first setup
+  await sql`
+    CREATE TABLE IF NOT EXISTS admin_users (
+      id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      username      TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at    TIMESTAMPTZ DEFAULT now()
+    )
+  `;
 }
 
 // ── Seed data ─────────────────────────────────────────────────────────────────
