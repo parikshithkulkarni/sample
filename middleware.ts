@@ -9,7 +9,9 @@ export default withAuth({
 });
 
 export const config = {
+  // Exclude all /api/* routes — they handle auth themselves via getServerSession
+  // Only protect page routes through middleware
   matcher: [
-    '/((?!api/auth|api/setup|api/ping|setup|login|_next/static|_next/image|favicon.ico).*)',
+    '/((?!api|setup|login|_next/static|_next/image|favicon.ico).*)',
   ],
 };
