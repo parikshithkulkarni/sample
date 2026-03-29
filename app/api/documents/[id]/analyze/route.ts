@@ -24,7 +24,7 @@ export async function POST(
   if (chunks.length === 0) return Response.json({ error: 'Document not found' }, { status: 404 });
 
   const [docRow] = await sql`SELECT name FROM documents WHERE id = ${id}`;
-  const textSample = chunks.map((c: { content: string }) => c.content).join('\n').slice(0, 8000);
+  const textSample = (chunks as { content: string }[]).map(c => c.content).join('\n').slice(0, 8000);
 
   try {
     const msg = await anthropic.messages.create({
