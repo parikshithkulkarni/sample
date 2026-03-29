@@ -3,11 +3,6 @@
   "buildCommand": "next build",
   "installCommand": "npm install",
   "outputDirectory": ".next",
-  "env": {
-    "ANTHROPIC_API_KEY": "@anthropic-api-key",
-    "ADMIN_USERNAME": "@admin-username",
-    "ADMIN_PASSWORD": "@admin-password"
-  },
   "headers": [
     {
       "source": "/(.*)",
