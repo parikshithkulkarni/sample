@@ -13,10 +13,9 @@ export async function extractAndInsert(documentId: string): Promise<{ accounts: 
   const [docRow] = await sql`SELECT name FROM documents WHERE id = ${documentId}`;
   const docName = (docRow as { name: string }).name;
 
+  // Use the full document — no sampling, no cropping
   const rows = allChunks as { content: string; chunk_index: number }[];
-  const step = Math.max(1, Math.floor(rows.length / 30));
-  const sampled = rows.filter((_, i) => i % step === 0).slice(0, 30);
-  const text = sampled.map(r => r.content).join('\n\n').slice(0, 24000);
+  const text = rows.map(r => r.content).join('\n\n');
 
   // Fetch what's already in the system so Claude can skip duplicates and understand context
   const existingAccounts = await sql`SELECT name, type, category, balance, currency FROM accounts ORDER BY name`;

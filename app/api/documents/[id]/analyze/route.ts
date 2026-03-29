@@ -17,14 +17,14 @@ export async function POST(
 
   const { id } = await params;
 
-  // Fetch a sample of the document's text from chunks
+  // Fetch ALL chunks — no limit, no cropping
   const chunks = await sql`
-    SELECT content FROM chunks WHERE document_id = ${id} ORDER BY chunk_index LIMIT 6
+    SELECT content FROM chunks WHERE document_id = ${id} ORDER BY chunk_index
   `;
   if (chunks.length === 0) return Response.json({ error: 'Document not found' }, { status: 404 });
 
   const [docRow] = await sql`SELECT name FROM documents WHERE id = ${id}`;
-  const textSample = (chunks as { content: string }[]).map(c => c.content).join('\n').slice(0, 8000);
+  const fullText = (chunks as { content: string }[]).map(c => c.content).join('\n');
 
   try {
     const msg = await anthropic.messages.create({
@@ -33,12 +33,12 @@ export async function POST(
       messages: [
         {
           role: 'user',
-          content: `Analyze this document excerpt and return ONLY valid JSON (no markdown, no explanation):
+          content: `Analyze this document and return ONLY valid JSON (no markdown, no explanation):
 {"summary":"one sentence summary","insights":["insight 1","insight 2","insight 3"]}
 
 Document: ${(docRow as { name: string }).name}
 ---
-${textSample}`,
+${fullText}`,
         },
       ],
     });
