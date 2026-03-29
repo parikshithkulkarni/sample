@@ -27,15 +27,30 @@ const TAG_COLORS = [
 export default function DocumentList({ refresh = 0 }: Props) {
   const [docs, setDocs] = useState<Doc[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState('');
 
   useEffect(() => {
-    fetch('/api/documents').then((r) => r.json()).then(setDocs);
+    setFetchError('');
+    fetch('/api/documents')
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setDocs(data);
+        } else {
+          setFetchError(data?.error ?? 'Unknown error loading documents');
+        }
+      })
+      .catch((e) => setFetchError(e?.message ?? 'Failed to fetch'));
   }, [refresh]);
 
   async function remove(id: string) {
     if (!confirm('Delete this document and all its indexed chunks?')) return;
     await fetch(`/api/documents/${id}`, { method: 'DELETE' });
     setDocs((prev) => prev.filter((d) => d.id !== id));
+  }
+
+  if (fetchError) {
+    return <p className="text-center text-red-400 text-sm py-6">Error: {fetchError}</p>;
   }
 
   if (docs.length === 0) {
