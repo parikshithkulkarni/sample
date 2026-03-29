@@ -18,6 +18,11 @@ export async function GET(req: Request) {
   }
 
   try {
+    // Ensure schema exists (idempotent — safe to call on every request)
+    const { runMigrations, seedDeadlines } = await import('@/lib/db');
+    await runMigrations();
+    await seedDeadlines();
+
     const rows = await sql`
       SELECT id, name, tags, summary, insights, added_at
       FROM documents
