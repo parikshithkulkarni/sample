@@ -1,23 +1,51 @@
-name: Check & Fix Vercel Env Vars
+name: Check & Fix Vercel Config
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/vercel-check.yml'
 
 jobs:
   check:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: List env vars in Vercel project
+      - uses: actions/checkout@v4
+
+      - name: Fetch Vercel config and write results
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PROJECT_ID: prj_VnBon0ELOZsVdI7RYKomupBXHZpq
         run: |
-          echo "=== Env vars for project ==="
-          curl -s "https://api.vercel.com/v9/projects/prj_VnBon0ELOZsVdI7RYKomupBXHZpq/env" \
-            -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}" | \
-            python3 -c "
-          import json, sys
-          d = json.load(sys.stdin)
-          envs = d.get('envs', [])
-          for e in envs:
-              print(e['key'], '=', e.get('value','[encrypted]')[:30] if e.get('type') != 'encrypted' else '[encrypted]')
-          if not envs:
-              print('NO ENV VARS FOUND')
-              print(json.dumps(d, indent=2))
-          "
+          curl -s "https://api.vercel.com/v9/projects/$PROJECT_ID" \
+            -H "Authorization: Bearer $VERCEL_TOKEN" > /tmp/project.json
+          curl -s "https://api.vercel.com/v9/projects/$PROJECT_ID/env" \
+            -H "Authorization: Bearer $VERCEL_TOKEN" > /tmp/envs.json
+
+          python3 - <<'PYEOF'
+          import json
+
+          proj = json.loads(open('/tmp/project.json').read())
+          envs_raw = json.loads(open('/tmp/envs.json').read())
+
+          result = {
+            'projectName': proj.get('name'),
+            'repo': proj.get('link',{}).get('org','?') + '/' + proj.get('link',{}).get('repo','?'),
+            'branch': proj.get('link',{}).get('productionBranch','?'),
+            'envVarKeys': [e['key'] for e in envs_raw.get('envs',[])],
+            'hasDatabaseUrl': any(e['key']=='DATABASE_URL' for e in envs_raw.get('envs',[])),
+            'hasAnthropicKey': any(e['key']=='ANTHROPIC_API_KEY' for e in envs_raw.get('envs',[])),
+          }
+
+          with open('vercel-debug.json', 'w') as f:
+              json.dump(result, f, indent=2)
+          print(json.dumps(result, indent=2))
+          PYEOF
+
+      - name: Commit results
+        run: |
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git add vercel-debug.json
+          git diff --staged --quiet || git commit -m "chore: vercel debug results [skip ci]" && git push
