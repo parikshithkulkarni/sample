@@ -3,6 +3,17 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const anthropic = new Anthropic();
 
+// Robustly parse a value Claude might return as "$450,000" / "450k" / 450000 / null
+function parseNum(v: unknown): number | null {
+  if (v == null) return null;
+  if (typeof v === 'number') return isNaN(v) ? null : v;
+  const s = String(v).replace(/[$,\s]/g, '').toLowerCase();
+  if (s === '' || s === 'null' || s === 'n/a' || s === 'unknown') return null;
+  const multiplier = s.endsWith('k') ? 1000 : s.endsWith('m') ? 1_000_000 : 1;
+  const num = parseFloat(s.replace(/[km]$/, ''));
+  return isNaN(num) ? null : num * multiplier;
+}
+
 export async function extractAndInsert(documentId: string): Promise<{ accounts: string[]; properties: string[] }> {
   // Sample chunks spread evenly across the whole document
   const allChunks = await sql`
@@ -68,13 +79,16 @@ Extract every account and property you can find or reasonably infer from this do
 Be aggressive — include partial data (use null for unknown fields).
 Skip anything already in the system above.
 
-Return ONLY valid JSON (no markdown fences, no explanation):
+Return ONLY valid JSON (no markdown fences, no explanation).
+ALL numeric fields must be plain JSON numbers — integer or decimal, no quotes, no $ signs, no commas.
+  CORRECT: 450000   WRONG: "450,000" or "$450k" or "450000"
+
 {
   "accounts": [
-    { "name": "...", "type": "asset"|"liability", "category": "...", "balance": 0, "currency": "USD", "notes": "..." }
+    { "name": "...", "type": "asset"|"liability", "category": "...", "balance": 450000, "currency": "USD", "notes": "..." }
   ],
   "properties": [
-    { "address": "...", "purchase_price": null, "purchase_date": null, "market_value": null, "mortgage_balance": null, "notes": "" }
+    { "address": "...", "purchase_price": 450000, "purchase_date": "2020-06-15", "market_value": 620000, "mortgage_balance": 310000, "notes": "" }
   ]
 }`;
 
@@ -104,22 +118,43 @@ Return ONLY valid JSON (no markdown fences, no explanation):
       if (!acct.name || !acct.type || !acct.category) continue;
       const validCats = acct.type === 'asset' ? assetCategories : liabilityCategories;
       const category = validCats.has(acct.category) ? acct.category : 'other';
+      const balance = parseNum(acct.balance) ?? 0;
       const existing = await sql`SELECT id FROM accounts WHERE lower(name) = lower(${acct.name})`;
       if ((existing as unknown[]).length > 0) continue;
       await sql`
         INSERT INTO accounts (name, type, category, balance, currency, notes)
-        VALUES (${acct.name}, ${acct.type}, ${category}, ${acct.balance ?? 0}, ${acct.currency ?? 'USD'}, ${acct.notes ?? null})
+        VALUES (${acct.name}, ${acct.type}, ${category}, ${balance}, ${acct.currency ?? 'USD'}, ${acct.notes ?? null})
       `;
       insertedAccounts.push(acct.name);
     }
 
     for (const prop of parsed.properties ?? []) {
       if (!prop.address) continue;
-      const existing = await sql`SELECT id FROM properties WHERE lower(address) = lower(${prop.address})`;
-      if ((existing as unknown[]).length > 0) continue;
+      const purchase_price   = parseNum(prop.purchase_price);
+      const market_value     = parseNum(prop.market_value);
+      const mortgage_balance = parseNum(prop.mortgage_balance);
+      const existing = await sql`SELECT id, market_value, mortgage_balance, purchase_price FROM properties WHERE lower(address) = lower(${prop.address})` as { id: string; market_value: number | null; mortgage_balance: number | null; purchase_price: number | null }[];
+      if (existing.length > 0) {
+        // Update only fields that were null/zero and now have real values
+        const row = existing[0];
+        const needsUpdate = (!row.market_value && market_value) || (!row.mortgage_balance && mortgage_balance) || (!row.purchase_price && purchase_price);
+        if (needsUpdate) {
+          await sql`
+            UPDATE properties SET
+              purchase_price   = COALESCE(${purchase_price},   purchase_price),
+              market_value     = COALESCE(${market_value},     market_value),
+              mortgage_balance = COALESCE(${mortgage_balance}, mortgage_balance),
+              purchase_date    = COALESCE(${prop.purchase_date ?? null}, purchase_date),
+              notes            = COALESCE(${prop.notes ?? null}, notes)
+            WHERE id = ${row.id}
+          `;
+          insertedProperties.push(`${prop.address} (updated)`);
+        }
+        continue;
+      }
       await sql`
         INSERT INTO properties (address, purchase_price, purchase_date, market_value, mortgage_balance, notes)
-        VALUES (${prop.address}, ${prop.purchase_price ?? null}, ${prop.purchase_date ?? null}, ${prop.market_value ?? null}, ${prop.mortgage_balance ?? null}, ${prop.notes ?? null})
+        VALUES (${prop.address}, ${purchase_price}, ${prop.purchase_date ?? null}, ${market_value}, ${mortgage_balance}, ${prop.notes ?? null})
       `;
       insertedProperties.push(prop.address);
     }
