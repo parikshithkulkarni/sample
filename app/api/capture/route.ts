@@ -11,6 +11,11 @@ export async function POST(req: Request) {
   const { text, tags = [] } = (await req.json()) as { text: string; tags?: string[] };
   if (!text?.trim()) return Response.json({ error: 'text is required' }, { status: 400 });
 
+  try {
+    const { runMigrations } = await import('@/lib/db');
+    await runMigrations();
+  } catch { /* non-fatal */ }
+
   const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
   const filename = `capture-${timestamp}.txt`;
   const buffer = Buffer.from(text, 'utf-8');

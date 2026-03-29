@@ -40,6 +40,11 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return new Response('Unauthorized', { status: 401 });
 
+  try {
+    const { runMigrations } = await import('@/lib/db');
+    await runMigrations();
+  } catch { /* non-fatal */ }
+
   const formData = await req.formData();
   const file = formData.get('file') as File | null;
   const tagsRaw = (formData.get('tags') as string | null) ?? '';
