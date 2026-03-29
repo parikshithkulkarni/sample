@@ -1,6 +1,5 @@
 import { sql } from '@/lib/db';
 import { splitText } from '@/lib/chunker';
-import { extractText } from '@/lib/pdf';
 
 export interface IngestResult {
   documentId: string;
@@ -17,9 +16,10 @@ export async function ingestFile(
   mimeType: string,
   tags: string[] = [],
 ): Promise<IngestResult> {
-  // 1. Extract text
+  // 1. Extract text (lazy-load pdf parser only when needed)
   let text: string;
   if (mimeType === 'application/pdf') {
+    const { extractText } = await import('@/lib/pdf');
     text = await extractText(buffer);
   } else {
     text = buffer.toString('utf-8');
