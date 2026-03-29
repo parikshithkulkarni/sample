@@ -14,8 +14,14 @@ export async function register() {
         process.env.NEXTAUTH_URL = `https://${process.env.VERCEL_URL}`;
       }
     }
-    const { runMigrations, seedDeadlines } = await import('@/lib/db');
-    await runMigrations();
-    await seedDeadlines();
+    if (process.env.DATABASE_URL) {
+      try {
+        const { runMigrations, seedDeadlines } = await import('@/lib/db');
+        await runMigrations();
+        await seedDeadlines();
+      } catch (err) {
+        console.error('[instrumentation] DB init failed (non-fatal):', err);
+      }
+    }
   }
 }
