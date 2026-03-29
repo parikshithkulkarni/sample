@@ -4,6 +4,10 @@ on:
     branches: [master]
   workflow_dispatch:
 
+permissions:
+  issues: write
+  contents: read
+
 jobs:
   logs:
     runs-on: ubuntu-latest
@@ -16,20 +20,16 @@ jobs:
           TEAM='team_tQfsBQstANQimeYqRMKPp1F6'
           PROJ='prj_VnBonOELOZsVdI7RYKomupBXHZpq'
 
-          # Wait a bit for deployment to start
-          sleep 30
+          sleep 60
 
-          # Get latest deployment
           DEPID=$(curl -sf "https://api.vercel.com/v6/deployments?teamId=$TEAM&projectId=$PROJ&limit=1" \
             -H "Authorization: Bearer $VT" | python3 -c "import sys,json; d=json.load(sys.stdin)['deployments'][0]; print(d['uid'])")
 
           echo "Deployment: $DEPID"
 
-          # Get build/runtime logs
           curl -sf "https://api.vercel.com/v2/deployments/$DEPID/events?teamId=$TEAM&limit=200" \
             -H "Authorization: Bearer $VT" > /tmp/events.json || echo '[]' > /tmp/events.json
 
-          # Extract all log lines
           LOGS=$(python3 -c "
 import json
 events = json.load(open('/tmp/events.json'))
