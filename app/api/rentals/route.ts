@@ -6,6 +6,11 @@ export async function GET(_req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return new Response('Unauthorized', { status: 401 });
 
+  try {
+    const { runMigrations } = await import('@/lib/db');
+    await runMigrations();
+  } catch { /* non-fatal */ }
+
   const rows = await sql`
     SELECT id, address, purchase_price, purchase_date, market_value, mortgage_balance, notes, created_at
     FROM properties

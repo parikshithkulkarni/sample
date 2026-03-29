@@ -6,6 +6,12 @@ export async function GET(_req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return new Response('Unauthorized', { status: 401 });
 
+  try {
+    const { runMigrations, seedDeadlines } = await import('@/lib/db');
+    await runMigrations();
+    await seedDeadlines();
+  } catch { /* non-fatal */ }
+
   const rows = await sql`
     SELECT id, title, due_date, category, notes, is_done, is_recurring
     FROM deadlines
