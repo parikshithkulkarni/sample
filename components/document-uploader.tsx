@@ -141,10 +141,13 @@ export default function DocumentUploader({ onUploaded }: Props) {
   }
 
   function kickOffAnalysis(id: string) {
+    // AI summary + insights
     fetch(`/api/documents/${id}/analyze`, { method: 'POST' })
       .then(r => r.ok ? r.json() : null)
       .then(analyzed => { if (analyzed) { setResult(analyzed); onUploaded(analyzed); } })
       .catch(() => {});
+    // Auto-extract financial/rental data into Finance + Rentals pages
+    fetch(`/api/documents/${id}/extract`, { method: 'POST' }).catch(() => {});
   }
 
   function handleDrop(e: React.DragEvent) {
