@@ -1,38 +1,36 @@
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
-import { ingestFile } from '@/lib/ingestion';
 
 export const maxDuration = 60;
 
 // GET /api/documents — list all documents
-export async function GET(req: Request) {
+export async function GET(_req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return new Response('Unauthorized', { status: 401 });
 
   if (!process.env.DATABASE_URL) {
-    return Response.json({ error: 'DATABASE_URL not set — connect a Postgres database in Vercel Storage' }, { status: 503 });
+    return Response.json({ error: 'DATABASE_URL not set' }, { status: 503 });
   }
 
   try {
-    // Ensure schema exists (idempotent — safe to call on every request)
     const { runMigrations, seedDeadlines } = await import('@/lib/db');
     await runMigrations();
     await seedDeadlines();
-
     const rows = await sql`
       SELECT id, name, tags, summary, insights, added_at
-      FROM documents
-      ORDER BY added_at DESC
+      FROM documents ORDER BY added_at DESC
     `;
     return Response.json(rows);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return Response.json({ error: msg }, { status: 500 });
+    return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
 }
 
-// POST /api/documents — upload + ingest a document
+// POST /api/documents
+// Accepts two shapes:
+//   { fileName, mimeType: 'application/pdf', base64, tags }  — PDF binary (max ~3 MB)
+//   { fileName, chunks: string[], tags }                      — pre-split text chunks (txt/md)
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return new Response('Unauthorized', { status: 401 });
@@ -42,35 +40,59 @@ export async function POST(req: Request) {
     await runMigrations();
   } catch { /* non-fatal */ }
 
-  let fileName: string;
-  let mimeType: string;
-  let buffer: Buffer;
-  let tags: string[];
-
   try {
-    const body = await req.json() as { fileName: string; mimeType: string; base64: string; tags: string };
-    fileName = body.fileName;
-    mimeType = body.mimeType ?? 'text/plain';
-    tags = Array.isArray(body.tags)
+    const body = await req.json() as {
+      fileName: string;
+      mimeType?: string;
+      base64?: string;
+      chunks?: string[];
+      tags?: string | string[];
+    };
+
+    const fileName = body.fileName;
+    const tags: string[] = Array.isArray(body.tags)
       ? body.tags
       : (body.tags ?? '').split(',').map((t: string) => t.trim()).filter(Boolean);
-    buffer = Buffer.from(body.base64, 'base64');
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return Response.json({ error: `Failed to parse request: ${msg}` }, { status: 400 });
-  }
 
-  let documentId: string;
-  let chunkCount: number;
-  try {
-    ({ documentId, chunkCount } = await ingestFile(buffer, fileName, mimeType, tags));
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return Response.json({ error: `Ingestion failed: ${msg}` }, { status: 500 });
-  }
+    let chunks: string[];
 
-  const [doc] = await sql`
-    SELECT id, name, tags, summary, insights, added_at FROM documents WHERE id = ${documentId}
-  `;
-  return Response.json({ ...doc, chunkCount });
+    if (body.chunks) {
+      // Text path: chunks already split client-side
+      chunks = body.chunks;
+    } else if (body.base64) {
+      // Binary path: PDF — extract text server-side
+      const buffer = Buffer.from(body.base64, 'base64');
+      const mimeType = body.mimeType ?? 'application/pdf';
+      let text: string;
+      if (mimeType === 'application/pdf') {
+        const { extractText } = await import('@/lib/pdf');
+        text = await extractText(buffer);
+      } else {
+        text = buffer.toString('utf-8');
+      }
+      const { splitText } = await import('@/lib/chunker');
+      chunks = splitText(text);
+    } else {
+      return Response.json({ error: 'Provide either base64 or chunks' }, { status: 400 });
+    }
+
+    if (chunks.length === 0) return Response.json({ error: 'No text content found' }, { status: 400 });
+
+    // Insert document
+    const [docRow] = await sql`INSERT INTO documents (name, tags) VALUES (${fileName}, ${tags}) RETURNING id`;
+    const documentId = (docRow as { id: string }).id;
+
+    // Batch insert all chunks in one query
+    const indices = chunks.map((_, i) => i);
+    await sql`
+      INSERT INTO chunks (document_id, chunk_index, content)
+      SELECT ${documentId}, idx, content
+      FROM unnest(${indices}::int[], ${chunks}::text[]) AS t(idx, content)
+    `;
+
+    const [doc] = await sql`SELECT id, name, tags, summary, insights, added_at FROM documents WHERE id = ${documentId}`;
+    return Response.json({ ...doc, chunkCount: chunks.length });
+  } catch (e) {
+    return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+  }
 }
