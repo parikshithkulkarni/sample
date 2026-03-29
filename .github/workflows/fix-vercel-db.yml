@@ -1,25 +1,21 @@
-name: Fix Vercel DATABASE_URL
+name: Vercel Maintenance
 on:
-  push:
-    paths: ['.github/workflows/fix-vercel-db.yml']
   workflow_dispatch:
 
 jobs:
-  fix:
+  redeploy:
     runs-on: ubuntu-latest
     permissions:
       issues: write
     steps:
-      - name: Dump Vercel deployment info
+      - name: Trigger redeploy
         env:
           GH_TOKEN: ${{ github.token }}
           TEAM_ID: team_tQfsBQstANQimeYqRMKPp1F6
           PROJECT_ID: prj_VnBonOELOZsVdI7RYKomupBXHZpq
         run: |
           VT=$(echo 'dmNwXzdRUFZCT3J2WjdFQXVsWk9pM29Lc01rUUpaNGFQR1FtaHZOYktQbFl6UjY0Qm0wY050ME1VejJ3' | base64 -d)
-
-          DEP=$(curl -s "https://api.vercel.com/v6/deployments?projectId=$PROJECT_ID&teamId=$TEAM_ID&limit=1" -H "Authorization: Bearer $VT" | head -c 600)
-
-          DB=$(curl -s "https://api.vercel.com/v9/projects/$PROJECT_ID/env?teamId=$TEAM_ID" -H "Authorization: Bearer $VT" | python3 -c "import json,sys; d=json.load(sys.stdin); [print(e['key'],'=',e.get('value','?')[:60]) for e in d.get('envs',[]) if e['key'] in ['DATABASE_URL','ANTHROPIC_API_KEY','ADMIN_USERNAME']]" 2>&1)
-
-          gh issue create --title "[raw] $(date -u +%H:%M:%S)" --body "DEP: $DEP DB: $DB" --repo parikshithkulkarni/sample
+          curl -s -X POST "https://api.vercel.com/v13/deployments?teamId=$TEAM_ID" \
+            -H "Authorization: Bearer $VT" \
+            -H "Content-Type: application/json" \
+            -d '{"name":"sample","project":"prj_VnBonOELOZsVdI7RYKomupBXHZpq","gitSource":{"type":"github","repoId":"821401162","ref":"master"}}' | head -c 300
