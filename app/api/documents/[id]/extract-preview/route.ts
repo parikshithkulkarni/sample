@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
 import Anthropic from '@anthropic-ai/sdk';
+import { findAndParseJSON } from '@/lib/extract';
 
 export const maxDuration = 60;
 
@@ -98,13 +99,8 @@ Return ONLY valid JSON:
     });
 
     const text = (msg.content[0] as { type: string; text: string }).text;
-    // Find the outermost JSON object (handles any key ordering from Claude)
-    const anchors = ['{"accounts"', '{"properties"', '{  "accounts"', '{  "properties"', '{ "accounts"', '{ "properties"']
-      .map(a => text.indexOf(a)).filter(i => i !== -1);
-    const start = anchors.length > 0 ? Math.min(...anchors) : text.indexOf('{');
-    const end = start !== -1 ? text.lastIndexOf('}') : -1;
-    if (start === -1 || end === -1) throw new Error('No JSON object found in response');
-    const parsed = JSON.parse(text.slice(start, end + 1));
+    const parsed = findAndParseJSON(text);
+    if (!parsed) throw new Error('No JSON object found in response');
     return Response.json(parsed);
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : String(e), accounts: [], properties: [] }, { status: 500 });

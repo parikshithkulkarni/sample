@@ -37,8 +37,12 @@ const MOCK_DEADLINE = {
 
 describe('GET /api/deadlines', () => {
   beforeEach(() => {
+    mockSql.mockReset();
     mockAuth.mockResolvedValue({ user: { name: 'Test' } } as never);
-    mockSql.mockResolvedValue([MOCK_DEADLINE] as never);
+    // runMigrations + seedDeadlines (handled by separate mocks), then count + data
+    mockSql
+      .mockResolvedValueOnce([{ total: 1 }] as never)
+      .mockResolvedValueOnce([MOCK_DEADLINE] as never);
   });
 
   it('returns 401 when unauthenticated', async () => {
@@ -47,24 +51,31 @@ describe('GET /api/deadlines', () => {
     expect(res.status).toBe(401);
   });
 
-  it('returns deadlines as JSON array', async () => {
+  it('returns paginated deadlines', async () => {
     const res = await deadlinesGET(new Request('http://localhost/api/deadlines'));
     expect(res.status).toBe(200);
-    const data = await res.json();
-    expect(Array.isArray(data)).toBe(true);
-    expect(data[0].title).toBe('Q1 Estimated Tax');
-    expect(data[0].is_done).toBe(false);
+    const body = await res.json();
+    expect(body.total).toBe(1);
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.data[0].title).toBe('Q1 Estimated Tax');
+    expect(body.data[0].is_done).toBe(false);
   });
 
-  it('returns empty array when no deadlines', async () => {
-    mockSql.mockResolvedValue([] as never);
+  it('returns empty data when no deadlines', async () => {
+    mockSql.mockReset();
+    mockSql
+      .mockResolvedValueOnce([{ total: 0 }] as never)
+      .mockResolvedValueOnce([] as never);
     const res = await deadlinesGET(new Request('http://localhost/api/deadlines'));
-    expect(await res.json()).toEqual([]);
+    const body = await res.json();
+    expect(body.data).toEqual([]);
+    expect(body.total).toBe(0);
   });
 });
 
 describe('POST /api/deadlines', () => {
   beforeEach(() => {
+    mockSql.mockReset();
     mockAuth.mockResolvedValue({ user: { name: 'Test' } } as never);
     mockSql.mockResolvedValue([MOCK_DEADLINE] as never);
   });
@@ -98,10 +109,20 @@ describe('POST /api/deadlines', () => {
     }));
     expect(mockSql).toHaveBeenCalled();
   });
+
+  it('returns 400 for invalid date format', async () => {
+    const res = await deadlinesPOST(new Request('http://localhost/api/deadlines', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Test', due_date: 'April 15', category: 'Other' }),
+    }));
+    expect(res.status).toBe(400);
+  });
 });
 
 describe('PATCH /api/deadlines/[id]', () => {
   beforeEach(() => {
+    mockSql.mockReset();
     mockAuth.mockResolvedValue({ user: { name: 'Test' } } as never);
     mockSql.mockResolvedValue([{ ...MOCK_DEADLINE, is_done: true }] as never);
   });
@@ -148,6 +169,7 @@ describe('PATCH /api/deadlines/[id]', () => {
 
 describe('DELETE /api/deadlines/[id]', () => {
   beforeEach(() => {
+    mockSql.mockReset();
     mockAuth.mockResolvedValue({ user: { name: 'Test' } } as never);
     mockSql.mockResolvedValue([] as never);
   });

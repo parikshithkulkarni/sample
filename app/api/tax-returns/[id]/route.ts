@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
+import { taxReturnPatchSchema, parseBody } from '@/lib/validators';
 
 export const maxDuration = 30;
 
@@ -14,11 +15,9 @@ export async function PATCH(
   if (!session) return new Response('Unauthorized', { status: 401 });
 
   const { id } = await params;
-  const { year, country, data: patch } = await req.json() as {
-    year: number;
-    country: 'US' | 'India';
-    data: Record<string, unknown>;
-  };
+  const parsed = await parseBody(req, taxReturnPatchSchema);
+  if (parsed instanceof Response) return parsed;
+  const { year, country, data: patch } = parsed;
 
   // id='new' means we're creating for the first time
   if (id === 'new') {

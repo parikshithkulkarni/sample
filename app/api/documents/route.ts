@@ -1,11 +1,13 @@
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
+import { documentUploadSchema, paginationSchema, parseBody, parseQuery } from '@/lib/validators';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 60;
 
-// GET /api/documents — list all documents
-export async function GET(_req: Request) {
+// GET /api/documents — list documents with pagination
+export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return new Response('Unauthorized', { status: 401 });
 
@@ -13,17 +15,26 @@ export async function GET(_req: Request) {
     return Response.json({ error: 'DATABASE_URL not set' }, { status: 503 });
   }
 
+  const { searchParams } = new URL(req.url);
+  const pagination = parseQuery(searchParams, paginationSchema);
+  if (pagination instanceof Response) return pagination;
+  const { limit, offset } = pagination;
+
   try {
     const { runMigrations, seedDeadlines } = await import('@/lib/db');
     await runMigrations();
     await seedDeadlines();
+    const [countRow] = await sql`SELECT count(*)::int AS total FROM documents`;
+    const total = (countRow as { total: number }).total;
     const rows = await sql`
       SELECT id, name, tags, summary, insights, added_at, extracted_at
       FROM documents ORDER BY added_at DESC
+      LIMIT ${limit} OFFSET ${offset}
     `;
-    return Response.json(rows);
+    return Response.json({ data: rows, total });
   } catch (e) {
-    return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+    logger.error('Failed to list documents', e);
+    return Response.json({ error: 'Failed to list documents' }, { status: 500 });
   }
 }
 
@@ -41,13 +52,9 @@ export async function POST(req: Request) {
   } catch { /* non-fatal */ }
 
   try {
-    const body = await req.json() as {
-      fileName: string;
-      mimeType?: string;
-      base64?: string;
-      chunks?: string[];
-      tags?: string | string[];
-    };
+    const parsed = await parseBody(req, documentUploadSchema);
+    if (parsed instanceof Response) return parsed;
+    const body = parsed;
 
     const fileName = body.fileName;
     const tags: string[] = Array.isArray(body.tags)
@@ -56,12 +63,20 @@ export async function POST(req: Request) {
 
     let chunks: string[];
 
+    const { MAX_PDF_SIZE_BYTES: MAX_PDF_SIZE } = await import('@/lib/constants');
+
     if (body.chunks) {
       // Text path: chunks already split client-side
       chunks = body.chunks;
     } else if (body.base64) {
       // Binary path: PDF — extract text server-side
       const buffer = Buffer.from(body.base64, 'base64');
+      if (buffer.length > MAX_PDF_SIZE) {
+        return Response.json(
+          { error: `File too large (${(buffer.length / 1024 / 1024).toFixed(1)} MB). Max ${(MAX_PDF_SIZE / 1024 / 1024).toFixed(1)} MB.` },
+          { status: 413 },
+        );
+      }
       const mimeType = body.mimeType ?? 'application/pdf';
       let text: string;
       if (mimeType === 'application/pdf') {
@@ -73,6 +88,7 @@ export async function POST(req: Request) {
       const { splitText } = await import('@/lib/chunker');
       chunks = splitText(text);
     } else {
+      // Zod refine above ensures one of base64/chunks is present, but handle edge case
       return Response.json({ error: 'Provide either base64 or chunks' }, { status: 400 });
     }
 
@@ -106,12 +122,13 @@ export async function POST(req: Request) {
               await sql`UPDATE chunks SET embedding = ${`[${vectors[j].join(',')}]`}::vector WHERE id = ${slice[j].id}`;
             }
           }
-        } catch { /* non-fatal — search falls back to FTS */ }
+        } catch (err) { logger.error('Embedding generation failed (falling back to FTS)', err); }
       })();
     }
 
     return Response.json({ ...doc, chunkCount: chunks.length });
   } catch (e) {
-    return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+    logger.error('Document upload failed', e);
+    return Response.json({ error: 'Document upload failed' }, { status: 500 });
   }
 }

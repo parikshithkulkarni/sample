@@ -1,7 +1,20 @@
 import { sql } from '@/lib/db';
 import Anthropic from '@anthropic-ai/sdk';
+import { extractionOutputSchema } from '@/lib/validators';
+import { JSON_ANCHORS } from '@/lib/constants';
 
 const anthropic = new Anthropic();
+
+/**
+ * Find and parse the first JSON object in a string (handles Claude's prose/markdown wrapping).
+ */
+export function findAndParseJSON(text: string): unknown | null {
+  const anchors = JSON_ANCHORS.map(a => text.indexOf(a)).filter(i => i !== -1);
+  const start = anchors.length > 0 ? Math.min(...anchors) : text.indexOf('{');
+  const end = start !== -1 ? text.lastIndexOf('}') : -1;
+  if (start === -1 || end === -1) return null;
+  return JSON.parse(text.slice(start, end + 1));
+}
 
 // Robustly parse a value Claude might return as "$450,000" / "450k" / 450000 / null
 // Normalize address for dedup: lowercase, strip trailing punctuation, collapse whitespace,
@@ -150,17 +163,9 @@ CORRECT: 450000   WRONG: "450,000" or "$450k"
     });
 
     const text = (msg.content[0] as { type: string; text: string }).text;
-    // Find the outermost JSON object (handles any key ordering from Claude)
-    const anchors = ['{"accounts"', '{"properties"', '{  "accounts"', '{  "properties"', '{ "accounts"', '{ "properties"']
-      .map(a => text.indexOf(a)).filter(i => i !== -1);
-    const start = anchors.length > 0 ? Math.min(...anchors) : text.indexOf('{');
-    const end = start !== -1 ? text.lastIndexOf('}') : -1;
-    if (start === -1 || end === -1) return { accounts: [], properties: [] };
-
-    const parsed = JSON.parse(text.slice(start, end + 1)) as {
-      accounts: { name: string; type: string; category: string; balance: number; currency: string; notes?: string }[];
-      properties: { address: string; purchase_price?: number; purchase_date?: string; market_value?: number; mortgage_balance?: number; notes?: string }[];
-    };
+    const rawParsed = findAndParseJSON(text);
+    if (!rawParsed) return { accounts: [], properties: [] };
+    const parsed = extractionOutputSchema.parse(rawParsed);
 
     const insertedAccounts: string[] = [];
     const insertedProperties: string[] = [];

@@ -1,6 +1,6 @@
 import type { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { scryptSync, timingSafeEqual } from 'crypto';
+import { scryptSync, randomBytes, timingSafeEqual } from 'crypto';
 
 function verifyPassword(password: string, stored: string): boolean {
   try {
@@ -13,15 +13,33 @@ function verifyPassword(password: string, stored: string): boolean {
   }
 }
 
+function constantTimeEquals(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a);
+  const bBuf = Buffer.from(b);
+  if (aBuf.length !== bBuf.length) {
+    // Compare against self to burn constant time, then return false
+    timingSafeEqual(aBuf, aBuf);
+    return false;
+  }
+  return timingSafeEqual(aBuf, bBuf);
+}
+
 // Derive a secret from whatever the user has configured, in priority order.
-// This means NEXTAUTH_SECRET never needs to be set manually.
+// If no explicit secret is set, generate a strong random one and warn.
+let _generatedSecret: string | undefined;
 export function getSecret(): string {
-  return (
-    process.env.NEXTAUTH_SECRET ??
-    process.env.ADMIN_PASSWORD ??
-    process.env.ANTHROPIC_API_KEY ??
-    'fallback-needs-anthropic-key'
-  );
+  if (process.env.NEXTAUTH_SECRET) return process.env.NEXTAUTH_SECRET;
+  if (process.env.ADMIN_PASSWORD) {
+    // Derive a proper-length secret from the password using scrypt
+    const derived = scryptSync(process.env.ADMIN_PASSWORD, 'nextauth-secret-salt', 32).toString('hex');
+    return derived;
+  }
+  // Last resort: generate an ephemeral secret (sessions won't survive restarts)
+  if (!_generatedSecret) {
+    _generatedSecret = randomBytes(32).toString('hex');
+    console.warn('[auth] No NEXTAUTH_SECRET or ADMIN_PASSWORD set. Using ephemeral secret — sessions will not survive restarts. Set NEXTAUTH_SECRET in production.');
+  }
+  return _generatedSecret;
 }
 
 export const authOptions: NextAuthOptions = {
@@ -38,8 +56,8 @@ export const authOptions: NextAuthOptions = {
         // ── Env-var auth (backwards compat / override) ─────────────────────────
         if (process.env.ADMIN_USERNAME && process.env.ADMIN_PASSWORD) {
           if (
-            credentials.username === process.env.ADMIN_USERNAME &&
-            credentials.password === process.env.ADMIN_PASSWORD
+            constantTimeEquals(credentials.username, process.env.ADMIN_USERNAME) &&
+            constantTimeEquals(credentials.password, process.env.ADMIN_PASSWORD)
           ) {
             return { id: '1', name: credentials.username };
           }

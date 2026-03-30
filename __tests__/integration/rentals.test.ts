@@ -37,8 +37,12 @@ const MOCK_PROPERTY = {
 
 describe('GET /api/rentals', () => {
   beforeEach(() => {
+    mockSql.mockReset();
     mockAuth.mockResolvedValue({ user: { name: 'Test' } } as never);
-    mockSql.mockResolvedValue([MOCK_PROPERTY] as never);
+    // runMigrations (handled by separate mock), then count + data
+    mockSql
+      .mockResolvedValueOnce([{ total: 1 }] as never)
+      .mockResolvedValueOnce([MOCK_PROPERTY] as never);
   });
 
   it('returns 401 when unauthenticated', async () => {
@@ -47,23 +51,30 @@ describe('GET /api/rentals', () => {
     expect(res.status).toBe(401);
   });
 
-  it('returns list of properties', async () => {
+  it('returns paginated list of properties', async () => {
     const res = await rentalsGET(new Request('http://localhost/api/rentals'));
     expect(res.status).toBe(200);
-    const data = await res.json();
-    expect(Array.isArray(data)).toBe(true);
-    expect(data[0].address).toBe('123 Main St, Austin, TX 78701');
+    const body = await res.json();
+    expect(body.total).toBe(1);
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.data[0].address).toBe('123 Main St, Austin, TX 78701');
   });
 
-  it('returns empty array when no properties', async () => {
-    mockSql.mockResolvedValue([] as never);
+  it('returns empty data when no properties', async () => {
+    mockSql.mockReset();
+    mockSql
+      .mockResolvedValueOnce([{ total: 0 }] as never)
+      .mockResolvedValueOnce([] as never);
     const res = await rentalsGET(new Request('http://localhost/api/rentals'));
-    expect(await res.json()).toEqual([]);
+    const body = await res.json();
+    expect(body.data).toEqual([]);
+    expect(body.total).toBe(0);
   });
 });
 
 describe('POST /api/rentals', () => {
   beforeEach(() => {
+    mockSql.mockReset();
     mockAuth.mockResolvedValue({ user: { name: 'Test' } } as never);
     mockSql.mockResolvedValue([MOCK_PROPERTY] as never);
   });
@@ -98,6 +109,7 @@ describe('POST /api/rentals', () => {
 
   it('creates property with only address (optional fields null)', async () => {
     const minimalProp = { ...MOCK_PROPERTY, purchase_price: null, market_value: null, mortgage_balance: null };
+    mockSql.mockReset();
     mockSql.mockResolvedValue([minimalProp] as never);
     const res = await rentalsPOST(new Request('http://localhost/api/rentals', {
       method: 'POST',

@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
+import { deadlinePatchSchema, parseBody } from '@/lib/validators';
 
 export async function PATCH(
   req: Request,
@@ -10,16 +11,13 @@ export async function PATCH(
   if (!session) return new Response('Unauthorized', { status: 401 });
 
   const { id } = await params;
-  const body = (await req.json()) as Record<string, unknown>;
+  const parsed = await parseBody(req, deadlinePatchSchema);
+  if (parsed instanceof Response) return parsed;
 
-  if ('is_done' in body) {
-    const [row] = await sql`
-      UPDATE deadlines SET is_done = ${body.is_done as boolean} WHERE id = ${id} RETURNING *
-    `;
-    return Response.json(row);
-  }
-
-  return Response.json({ error: 'Nothing to update' }, { status: 400 });
+  const [row] = await sql`
+    UPDATE deadlines SET is_done = ${parsed.is_done} WHERE id = ${id} RETURNING *
+  `;
+  return Response.json(row);
 }
 
 export async function DELETE(

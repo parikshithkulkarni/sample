@@ -7,6 +7,7 @@ import { searchChunks, formatContext } from '@/lib/retrieval';
 import { webSearch, formatWebResults } from '@/lib/web-search';
 import { SYSTEM_PROMPT } from '@/lib/prompts';
 import { sql } from '@/lib/db';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 60;
 export const runtime = 'nodejs'; // keep alive for background message saving
@@ -127,7 +128,7 @@ async function saveAccounts(accounts: { name: string; type: string; category: st
   }
   if (saved.length > 0) {
     const { takeNetWorthSnapshot } = await import('@/lib/snapshots');
-    takeNetWorthSnapshot().catch(() => {});
+    takeNetWorthSnapshot().catch((err: unknown) => logger.error('Failed to take net worth snapshot', err));
   }
   return saved;
 }
@@ -157,8 +158,11 @@ export async function POST(req: Request) {
   if (!session) return new Response('Unauthorized', { status: 401 });
 
   const body = await req.json();
-  const { messages } = body;
-  const data = (body.data ?? {}) as { mentionedDocIds?: string[]; sessionId?: string };
+  const { messages, data: rawData } = body;
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return Response.json({ error: 'At least one message is required' }, { status: 400 });
+  }
+  const data = (rawData ?? {}) as { mentionedDocIds?: string[]; sessionId?: string };
   const mentionedDocIds: string[] = data.mentionedDocIds ?? [];
   const incomingSessionId: string = data.sessionId ?? '';
 
@@ -254,7 +258,7 @@ export async function POST(req: Request) {
           }
           if (deleted.length > 0) {
             const { takeNetWorthSnapshot } = await import('@/lib/snapshots');
-            takeNetWorthSnapshot().catch(() => {});
+            takeNetWorthSnapshot().catch((err: unknown) => logger.error('Failed to take net worth snapshot after delete', err));
           }
           return deleted.length > 0
             ? `✓ Deleted: ${deleted.join(', ')}`
@@ -262,7 +266,7 @@ export async function POST(req: Request) {
         },
       }),
     },
-    maxSteps: 5,
+    maxSteps: 5, // MAX_TOOL_STEPS — prevents infinite tool-calling loops
   });
 
   // Save messages to session in background after streaming completes
@@ -280,8 +284,8 @@ export async function POST(req: Request) {
               ${isNewSession ? sql`, title = ${(lastUser?.content ?? 'New Chat').slice(0, 60)}` : sql``}
           WHERE id = ${resolvedSessionId}
         `;
-      } catch { /* non-fatal */ }
-    }).catch(() => {});
+      } catch (err) { logger.error('Failed to save chat messages', err); }
+    }).catch((err: unknown) => logger.error('Failed to process chat result', err));
   }
 
   const streamResponse = result.toDataStreamResponse();

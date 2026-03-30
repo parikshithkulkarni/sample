@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
 import { US_DEFAULT, INDIA_DEFAULT } from '@/lib/tax-returns';
+import { taxReturnQuerySchema, taxReturnSyncSchema, parseBody, parseQuery } from '@/lib/validators';
 
 export const maxDuration = 30;
 
@@ -11,8 +12,9 @@ export async function GET(req: Request) {
   if (!session) return new Response('Unauthorized', { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const year = parseInt(searchParams.get('year') ?? String(new Date().getFullYear() - 1));
-  const country = searchParams.get('country') ?? 'US';
+  const parsed = parseQuery(searchParams, taxReturnQuerySchema);
+  if (parsed instanceof Response) return parsed;
+  const { year, country } = parsed;
 
   try {
     const { runMigrations } = await import('@/lib/db');
@@ -40,7 +42,9 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return new Response('Unauthorized', { status: 401 });
 
-  const { year, country } = await req.json() as { year: number; country: 'US' | 'India' };
+  const parsed = await parseBody(req, taxReturnSyncSchema);
+  if (parsed instanceof Response) return parsed;
+  const { year, country } = parsed;
 
   const { syncTaxReturnsFromAccounts } = await import('@/lib/tax-returns');
   await syncTaxReturnsFromAccounts(year);

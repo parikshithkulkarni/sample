@@ -1,3 +1,5 @@
+import { withRetry } from '@/lib/retry';
+
 export interface WebResult {
   title: string;
   url: string;
@@ -15,33 +17,41 @@ interface TavilyResponse {
   results: TavilySearchResult[];
 }
 
+const TIMEOUT_MS = 10_000;
+
 /**
  * Search the web via Tavily and return top results.
  */
 export async function webSearch(query: string, maxResults = 5): Promise<WebResult[]> {
-  const response = await fetch('https://api.tavily.com/search', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      api_key: process.env.TAVILY_API_KEY,
-      query,
-      max_results: maxResults,
-      search_depth: 'basic',
-      include_answer: false,
-    }),
-  });
+  return withRetry(
+    async (signal) => {
+      const response = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_key: process.env.TAVILY_API_KEY,
+          query,
+          max_results: maxResults,
+          search_depth: 'basic',
+          include_answer: false,
+        }),
+        signal,
+      });
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Tavily error ${response.status}: ${body}`);
-  }
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`Tavily error ${response.status}: ${body}`);
+      }
 
-  const json = (await response.json()) as TavilyResponse;
-  return json.results.map((r) => ({
-    title: r.title,
-    url: r.url,
-    content: r.content,
-  }));
+      const json = (await response.json()) as TavilyResponse;
+      return json.results.map((r) => ({
+        title: r.title,
+        url: r.url,
+        content: r.content,
+      }));
+    },
+    { maxAttempts: 2, timeoutMs: TIMEOUT_MS, label: 'Tavily web search' },
+  );
 }
 
 export function formatWebResults(results: WebResult[]): string {
