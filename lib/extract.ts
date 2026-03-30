@@ -4,7 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 const anthropic = new Anthropic();
 
 // Robustly parse a value Claude might return as "$450,000" / "450k" / 450000 / null
-function parseNum(v: unknown): number | null {
+export function parseNum(v: unknown): number | null {
   if (v == null) return null;
   if (typeof v === 'number') return isNaN(v) ? null : v;
   const s = String(v).replace(/[$,\s]/g, '').toLowerCase();
@@ -101,8 +101,9 @@ ALL numeric fields must be plain JSON numbers — integer or decimal, no quotes,
     });
 
     const text = (msg.content[0] as { type: string; text: string }).text;
-    const start = text.indexOf('{');
-    const end = text.lastIndexOf('}');
+    // Anchor on the known top-level key to avoid matching embedded JSON in document content
+    const start = text.indexOf('{"accounts"');
+    const end = start !== -1 ? text.lastIndexOf('}', text.length) : -1;
     if (start === -1 || end === -1) return { accounts: [], properties: [] };
 
     const parsed = JSON.parse(text.slice(start, end + 1)) as {

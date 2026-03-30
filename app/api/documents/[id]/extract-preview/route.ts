@@ -84,9 +84,9 @@ Return ONLY valid JSON:
     });
 
     const text = (msg.content[0] as { type: string; text: string }).text;
-    // Extract the JSON object even if Claude prefixes with prose
-    const start = text.indexOf('{');
-    const end = text.lastIndexOf('}');
+    // Anchor on the known top-level key to avoid matching embedded JSON in document content
+    const start = text.indexOf('{"accounts"');
+    const end = start !== -1 ? text.lastIndexOf('}') : -1;
     if (start === -1 || end === -1) throw new Error('No JSON object found in response');
     const parsed = JSON.parse(text.slice(start, end + 1));
     return Response.json(parsed);
