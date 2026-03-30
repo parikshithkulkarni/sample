@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Check, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, X, GitMerge } from 'lucide-react';
 import { fmt } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import NetWorthChart from '@/components/net-worth-chart';
@@ -21,13 +21,42 @@ interface Account {
 const ASSET_SUGGESTIONS = ['401k', 'roth_ira', 'brokerage', 'rsu', 'espp', 'nso_options', 'iso_options', 'real_estate', 'savings', 'checking', 'money_market', 'cd', 'treasury', 'bond', 'crypto', 'hsa', '529_plan', 'life_insurance', 'annuity', 'pension', 'startup_equity', 'angel_investment', 'business_interest', 'commodity', 'collectibles', 'other'];
 const LIABILITY_SUGGESTIONS = ['mortgage', 'heloc', 'auto_loan', 'credit_card', 'student_loan', 'personal_loan', 'tax_liability', 'margin_loan', 'other'];
 
+function normalizeAcctName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\b(inc|llc|corp|ltd|co|na|n\.a\.)\b\.?/g, '')
+    .replace(/\b(account|accounts|bank|financial|investments?|services?)\b/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export default function FinanceOverview() {
   const router = useRouter();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [adding, setAdding] = useState(false);
+  const [merging, setMerging] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editBalance, setEditBalance] = useState('');
   const [form, setForm] = useState({ name: '', type: 'asset' as 'asset' | 'liability', category: '', balance: '', currency: 'USD', notes: '' });
+
+  // Detect duplicate groups: same normalized name
+  const dupGroups: Account[][] = (() => {
+    const visited = new Set<string>();
+    const groups: Account[][] = [];
+    for (let i = 0; i < accounts.length; i++) {
+      if (visited.has(accounts[i].id)) continue;
+      const group = [accounts[i]];
+      for (let j = i + 1; j < accounts.length; j++) {
+        if (!visited.has(accounts[j].id) && normalizeAcctName(accounts[i].name) === normalizeAcctName(accounts[j].name)) {
+          group.push(accounts[j]);
+          visited.add(accounts[j].id);
+        }
+      }
+      if (group.length > 1) { visited.add(accounts[i].id); groups.push(group); }
+    }
+    return groups;
+  })();
 
   useEffect(() => {
     fetch('/api/finance').then((r) => r.json()).then(setAccounts);
@@ -38,6 +67,26 @@ export default function FinanceOverview() {
   const totalAssets = assets.reduce((s, a) => s + Number(a.balance), 0);
   const totalLiabilities = liabilities.reduce((s, a) => s + Number(a.balance), 0);
   const netWorth = totalAssets - totalLiabilities;
+
+  async function mergeDuplicates() {
+    setMerging(true);
+    try {
+      for (const group of dupGroups) {
+        // Keep the one with the highest balance; sum all into it
+        const keepId = group.reduce((best, a) => Number(a.balance) > Number(best.balance) ? a : best).id;
+        const deleteIds = group.filter(a => a.id !== keepId).map(a => a.id);
+        await fetch('/api/finance/merge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keepId, deleteIds }),
+        });
+      }
+      const updated = await fetch('/api/finance').then(r => r.json()) as Account[];
+      setAccounts(updated);
+    } finally {
+      setMerging(false);
+    }
+  }
 
   async function addAccount(e: React.FormEvent) {
     e.preventDefault();
@@ -105,6 +154,26 @@ export default function FinanceOverview() {
 
   return (
     <div className="space-y-5">
+      {/* Duplicate account warning */}
+      {dupGroups.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-amber-800">Duplicate accounts detected</p>
+            <p className="text-xs text-amber-600 mt-0.5">
+              {dupGroups.map(g => g[0].name).join(', ')} — balances will be summed into one
+            </p>
+          </div>
+          <button
+            onClick={mergeDuplicates}
+            disabled={merging}
+            className="shrink-0 flex items-center gap-1 text-xs px-3 py-1.5 bg-amber-600 text-white rounded-xl font-medium disabled:opacity-50"
+          >
+            <GitMerge size={13} />
+            {merging ? 'Merging…' : 'Merge'}
+          </button>
+        </div>
+      )}
+
       {/* Net worth card */}
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
         <p className="text-xs text-gray-500 mb-1">Net Worth</p>

@@ -22,6 +22,23 @@ function addressesMatch(a: string, b: string): boolean {
   return na === nb || na.startsWith(nb + ' ') || nb.startsWith(na + ' ');
 }
 
+// Normalize account name for dedup: lowercase, strip punctuation/corp suffixes, collapse spaces
+export function normalizeAccountName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\b(inc|llc|corp|ltd|co|na|n\.a\.)\b\.?/g, '')
+    .replace(/\b(account|accounts|bank|financial|investments?|services?)\b/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function accountNamesMatch(a: string, b: string): boolean {
+  const na = normalizeAccountName(a);
+  const nb = normalizeAccountName(b);
+  return na === nb;
+}
+
 export function parseNum(v: unknown): number | null {
   if (v == null) return null;
   if (typeof v === 'number') return isNaN(v) ? null : v;
@@ -148,12 +165,14 @@ CORRECT: 450000   WRONG: "450,000" or "$450k"
     const insertedAccounts: string[] = [];
     const insertedProperties: string[] = [];
 
+    const allAccounts = await sql`SELECT id, name FROM accounts` as { id: string; name: string }[];
     for (const acct of parsed.accounts ?? []) {
       if (!acct.name || !acct.type || !acct.category) continue;
       const category = acct.category.toLowerCase().replace(/[^a-z0-9_]/g, '_') || 'other';
       const balance = parseNum(acct.balance) ?? 0;
-      const existing = await sql`SELECT id FROM accounts WHERE lower(name) = lower(${acct.name})`;
-      if ((existing as unknown[]).length > 0) continue;
+      // Use normalized name matching to prevent near-duplicate insertions
+      const isDuplicate = allAccounts.some(a => accountNamesMatch(a.name, acct.name));
+      if (isDuplicate) continue;
       await sql`
         INSERT INTO accounts (name, type, category, balance, currency, notes)
         VALUES (${acct.name}, ${acct.type}, ${category}, ${balance}, ${acct.currency ?? 'USD'}, ${acct.notes ?? null})
