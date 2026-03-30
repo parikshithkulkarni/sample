@@ -41,9 +41,9 @@ export default function DashboardCards() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/deadlines').then((r) => r.json()).then((d: Deadline[]) => setDeadlines(Array.isArray(d) ? d : [])),
-      fetch('/api/finance').then((r) => r.json()).then((a: Account[]) => setAccounts(Array.isArray(a) ? a : [])),
-      fetch('/api/rentals').then((r) => r.json()).then((p: Property[]) => setProperties(Array.isArray(p) ? p : [])),
+      fetch('/api/deadlines').then((r) => r.json()).then((d) => setDeadlines(Array.isArray(d) ? d : d?.data ?? [])),
+      fetch('/api/finance').then((r) => r.json()).then((a) => setAccounts(Array.isArray(a) ? a : a?.data ?? [])),
+      fetch('/api/rentals').then((r) => r.json()).then((p) => setProperties(Array.isArray(p) ? p : p?.data ?? [])),
     ]).finally(() => setLoading(false));
   }, []);
 

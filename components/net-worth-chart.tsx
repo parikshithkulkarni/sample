@@ -43,7 +43,7 @@ export default function NetWorthChart({ compact = false }: Props) {
   useEffect(() => {
     fetch('/api/finance/snapshots')
       .then((r) => r.json())
-      .then((data: Snapshot[]) => { if (Array.isArray(data)) setSnapshots(data); })
+      .then((data) => { const items = Array.isArray(data) ? data : data?.data ?? []; setSnapshots(items); })
       .catch(() => {});
   }, []);
 

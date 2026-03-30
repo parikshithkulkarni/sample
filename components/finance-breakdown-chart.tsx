@@ -48,7 +48,7 @@ export default function FinanceBreakdownChart() {
   const [tab, setTab] = useState<'assets' | 'liabilities'>('assets');
 
   useEffect(() => {
-    fetch('/api/finance').then((r) => r.json()).then((data: Account[]) => setAccounts(data));
+    fetch('/api/finance').then((r) => r.json()).then((data) => setAccounts(Array.isArray(data) ? data : data?.data ?? []));
   }, []);
 
   const filtered = accounts.filter((a) => a.type === (tab === 'assets' ? 'asset' : 'liability'));

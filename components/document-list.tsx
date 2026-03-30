@@ -110,10 +110,11 @@ export default function DocumentList({ refresh = 0 }: Props) {
         const r = await fetch('/api/documents');
         const data = await r.json();
         if (cancelled) return;
-        if (Array.isArray(data)) {
+        const docs = Array.isArray(data) ? data : data?.data;
+        if (Array.isArray(docs)) {
           setFetchError('');
           setRetrying(false);
-          setDocs(data);
+          setDocs(docs);
         } else if (attempt < 5) {
           setRetrying(true);
           setTimeout(() => { if (!cancelled) load(attempt + 1); }, 2000 * (attempt + 1));

@@ -65,7 +65,7 @@ export default function FinanceOverview() {
   useEffect(() => {
     fetch('/api/finance')
       .then((r) => r.json())
-      .then(setAccounts)
+      .then((d) => setAccounts(Array.isArray(d) ? d : d?.data ?? []))
       .finally(() => setLoading(false));
   }, []);
 
