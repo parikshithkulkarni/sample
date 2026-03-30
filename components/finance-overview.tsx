@@ -278,13 +278,15 @@ export default function FinanceOverview() {
   async function syncFromDocs() {
     setSyncing(true);
     try {
-      await fetch('/api/documents/extract-all', { method: 'POST' });
+      // Re-extract all documents, then cleanup
+      const res1 = await fetch('/api/documents/extract-all', { method: 'POST' });
+      if (!res1.ok) throw new Error(`Extraction failed: ${res1.status}`);
       await fetch('/api/finance/cleanup', { method: 'POST' }).catch(() => {});
       const res = await fetch('/api/finance').then(r => r.json());
       setAccounts(Array.isArray(res) ? res : res?.data ?? []);
       addToast('Synced from documents', 'success');
-    } catch {
-      addToast('Sync failed', 'error');
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : 'Sync failed', 'error');
     } finally {
       setSyncing(false);
     }

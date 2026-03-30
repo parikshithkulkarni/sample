@@ -170,28 +170,74 @@ Each tax_data entry has:
 - notes: optional string for context
 
 ### US tax field mappings:
+Income:
 - W-2 Box 1 wages → field: "us.income.wages"
-- W-2 Box 2 federal withheld → field: "us.payments.federal_withheld"
-- W-2 Box 17 state withheld → field: "us.payments.state_withheld"
-- W-2 Box 12 Code D (401k contribution) → field: "us.adjustments.k401_contributions"
-- W-2 Box 12 Code W (HSA contribution) → field: "us.adjustments.hsa_deduction"
 - 1099-INT interest → field: "us.income.interest"
 - 1099-DIV ordinary dividends → field: "us.income.ordinary_dividends"
 - 1099-DIV qualified dividends → field: "us.income.qualified_dividends"
-- 1099-B short-term gains → field: "us.income.st_capital_gains"
-- 1099-B long-term gains → field: "us.income.lt_capital_gains"
-- 1099-R distributions → field: "us.income.ira_distributions"
+- 1099-B short-term capital gains → field: "us.income.st_capital_gains"
+- 1099-B long-term capital gains → field: "us.income.lt_capital_gains"
+- 1099-R retirement distributions → field: "us.income.ira_distributions"
+- 1099-R pension/annuity → field: "us.income.pension_annuity"
 - 1099-NEC/MISC self-employment → field: "us.income.business_income"
 - K-1 business/partnership income → field: "us.income.business_income"
 - Schedule E rental income → field: "us.income.rental_income"
-- Estimated tax payments → field: "us.payments.estimated_payments"
+- Social Security benefits → field: "us.income.social_security"
+- Any other income → field: "us.income.other_income"
+
+Adjustments:
+- W-2 Box 12 Code D (401k contribution) → field: "us.adjustments.k401_contributions"
+- W-2 Box 12 Code W (HSA contribution) → field: "us.adjustments.hsa_deduction"
+- Traditional IRA deduction → field: "us.adjustments.ira_deduction"
+- Student loan interest (1098-E) → field: "us.adjustments.student_loan_interest"
+- Self-employment tax (half) → field: "us.adjustments.self_employment_tax"
+- Educator expenses → field: "us.adjustments.educator_expenses"
+
+Deductions:
+- 1098 mortgage interest paid → field: "us.deductions.mortgage_interest"
+- Property tax paid (1098 Box 10) → field: "us.deductions.salt"
+- State/local income tax paid → field: "us.deductions.salt" (additive with property tax)
+- Charitable contributions (cash/noncash) → field: "us.deductions.charitable"
+- Medical/dental expenses → field: "us.deductions.medical_expenses"
+
+Credits:
+- Foreign tax paid (1099-DIV Box 7, 1116) → field: "us.credits.foreign_tax"
+- Education credits (1098-T) → field: "us.credits.education"
+
+Taxes:
+- Self-employment tax → field: "us.other_taxes.se_tax"
+- Net investment income tax → field: "us.other_taxes.niit"
+
+Payments:
+- W-2 Box 2 federal withheld → field: "us.payments.federal_withheld"
+- W-2 Box 17 state withheld → field: "us.payments.state_withheld"
+- 1099 federal withheld → field: "us.payments.federal_withheld" (additive)
+- Estimated tax payments (1040-ES) → field: "us.payments.estimated_payments"
+
+ISO/AMT:
+- ISO exercise: shares → field: "us.iso_amt.shares_exercised"
+- ISO exercise: FMV at exercise → field: "us.iso_amt.fmv_at_exercise"
+- ISO exercise: strike price → field: "us.iso_amt.exercise_price"
+
+FBAR:
+- If foreign accounts mentioned with balance > $10k → include in notes
 
 ### India tax field mappings:
 - Salary income → field: "india.income.salary"
-- TDS on salary → field: "india.taxes_paid.tds_salary"
-- Interest income → field: "india.income.interest_income"
+- TDS on salary (Form 16) → field: "india.taxes_paid.tds_salary"
+- TDS on other income → field: "india.taxes_paid.tds_other"
+- Interest income (FD, savings) → field: "india.income.interest_income"
+- House property rent → field: "india.income.house_property_rent"
+- Home loan interest → field: "india.income.home_loan_interest"
 - STCG equity → field: "india.income.st_equity_gains"
 - LTCG equity → field: "india.income.lt_equity_gains"
+- Business/profession income → field: "india.income.business_income"
+- Foreign income → field: "india.income.foreign_income"
+- Advance tax paid → field: "india.taxes_paid.advance_tax"
+- Section 80C (PPF/ELSS/LIC/etc.) → field: "india.deductions.sec_80c"
+- Section 80D health insurance → field: "india.deductions.sec_80d"
+- NPS 80CCD(1B) → field: "india.deductions.sec_80ccd_1b"
+- Employer NPS 80CCD(2) → field: "india.deductions.sec_80ccd_2"
 
 Extract EVERYTHING. Be aggressive — include partial data (use null for unknown fields).
 Skip accounts/properties already in the system above.
@@ -227,9 +273,17 @@ export async function extractAndInsert(documentId: string): Promise<{ accounts: 
   const [docRow] = await sql`SELECT name FROM documents WHERE id = ${documentId}`;
   const docName = (docRow as { name: string }).name;
 
-  // Use the full document — no sampling, no cropping
+  // Use the full document text. Claude sonnet supports 200K tokens (~800K chars).
+  // The prompt itself is ~4K chars, and we need room for the response (4K tokens).
+  // Safe limit: ~600K chars of document text.
+  const MAX_DOC_CHARS = 600_000;
   const rows = allChunks as { content: string; chunk_index: number }[];
-  const text = rows.map(r => r.content).join('\n\n');
+  let text = rows.map(r => r.content).join('\n\n');
+  if (text.length > MAX_DOC_CHARS) {
+    // Truncate but keep beginning and end (financial summaries are often at the end)
+    const half = Math.floor(MAX_DOC_CHARS / 2);
+    text = text.slice(0, half) + '\n\n[... middle section omitted for length ...]\n\n' + text.slice(-half);
+  }
 
   // Fetch what's already in the system so Claude can skip duplicates and understand context
   const existingAccounts = await sql`SELECT name, type, category, balance, currency FROM accounts ORDER BY name`;
@@ -248,7 +302,7 @@ export async function extractAndInsert(documentId: string): Promise<{ accounts: 
   try {
     const msg = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
+      max_tokens: 8192,
       messages: [{ role: 'user', content: prompt }],
     });
 

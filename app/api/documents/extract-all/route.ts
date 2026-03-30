@@ -2,23 +2,33 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
 import { extractAndInsert } from '@/lib/extract';
+import { logger } from '@/lib/logger';
 
-export const maxDuration = 60;
+export const maxDuration = 300; // 5 minutes — extraction is slow
 
 export async function POST(_req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return new Response('Unauthorized', { status: 401 });
 
   const docs = await sql`SELECT id, name FROM documents ORDER BY added_at ASC`;
-  const results: { name: string; accounts: string[]; properties: string[] }[] = [];
+  const results: { name: string; accounts: string[]; properties: string[]; rentalRecords: string[]; taxData: string[] }[] = [];
 
   for (const doc of docs as { id: string; name: string }[]) {
     try {
       const r = await extractAndInsert(doc.id);
       results.push({ name: doc.name, ...r });
-    } catch {
-      results.push({ name: doc.name, accounts: [], properties: [] });
+    } catch (err) {
+      logger.error(`Extraction failed for ${doc.name}`, err);
+      results.push({ name: doc.name, accounts: [], properties: [], rentalRecords: [], taxData: [] });
     }
+  }
+
+  // Sync tax returns after all extractions
+  try {
+    const { syncTaxReturnsFromAccounts } = await import('@/lib/tax-returns');
+    await syncTaxReturnsFromAccounts();
+  } catch (err) {
+    logger.error('Tax sync failed after extract-all', err);
   }
 
   return Response.json({ processed: docs.length, results });
