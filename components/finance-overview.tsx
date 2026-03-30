@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Check, X, GitMerge } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, X, GitMerge, ChevronDown, ChevronUp, Landmark, TrendingUp, Wallet, Building2, Shield, Briefcase, CreditCard, PiggyBank, Coins } from 'lucide-react';
 import { fmt } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import NetWorthChart from '@/components/net-worth-chart';
@@ -20,8 +20,95 @@ interface Account {
   updated_at: string;
 }
 
-const ASSET_SUGGESTIONS = ['401k', 'roth_ira', 'brokerage', 'rsu', 'espp', 'nso_options', 'iso_options', 'real_estate', 'savings', 'checking', 'money_market', 'cd', 'treasury', 'bond', 'crypto', 'hsa', '529_plan', 'life_insurance', 'annuity', 'pension', 'startup_equity', 'angel_investment', 'business_interest', 'commodity', 'collectibles', 'other'];
-const LIABILITY_SUGGESTIONS = ['mortgage', 'heloc', 'auto_loan', 'credit_card', 'student_loan', 'personal_loan', 'tax_liability', 'margin_loan', 'other'];
+// ── Semantic category groups ────────────────────────────────────────────────
+// Each account category maps to a semantic group for organized display
+
+type SemanticGroup = {
+  key: string;
+  label: string;
+  icon: typeof Landmark;
+  categories: string[];
+  type: 'asset' | 'liability' | 'both';
+};
+
+const SEMANTIC_GROUPS: SemanticGroup[] = [
+  {
+    key: 'retirement',
+    label: 'Retirement',
+    icon: Landmark,
+    categories: ['401k', 'roth_ira', 'ira', 'pension', 'annuity', 'hsa', '529_plan', 'retirement_distribution'],
+    type: 'asset',
+  },
+  {
+    key: 'investments',
+    label: 'Investments',
+    icon: TrendingUp,
+    categories: ['brokerage', 'rsu', 'espp', 'nso_options', 'iso_options', 'startup_equity', 'angel_investment', 'business_interest', 'crypto', 'commodity', 'collectibles', 'bond', 'treasury', 'cd', 'money_market'],
+    type: 'asset',
+  },
+  {
+    key: 'cash',
+    label: 'Cash & Banking',
+    icon: Wallet,
+    categories: ['checking', 'savings'],
+    type: 'asset',
+  },
+  {
+    key: 'real_estate',
+    label: 'Real Estate',
+    icon: Building2,
+    categories: ['real_estate'],
+    type: 'asset',
+  },
+  {
+    key: 'insurance',
+    label: 'Insurance & Protection',
+    icon: Shield,
+    categories: ['life_insurance'],
+    type: 'asset',
+  },
+  {
+    key: 'income',
+    label: 'Income & Receivables',
+    icon: Briefcase,
+    categories: ['employment_income', 'self_employment_income', 'partnership_income', 'interest_income', 'dividend_income', 'tax_prepayment'],
+    type: 'asset',
+  },
+  {
+    key: 'debt',
+    label: 'Debt & Loans',
+    icon: CreditCard,
+    categories: ['mortgage', 'heloc', 'auto_loan', 'student_loan', 'personal_loan', 'margin_loan'],
+    type: 'liability',
+  },
+  {
+    key: 'recurring_liabilities',
+    label: 'Credit & Tax Liabilities',
+    icon: Coins,
+    categories: ['credit_card', 'tax_liability'],
+    type: 'liability',
+  },
+];
+
+function getSemanticGroup(account: Account): string {
+  const cat = account.category.toLowerCase();
+  for (const group of SEMANTIC_GROUPS) {
+    if (group.categories.includes(cat)) return group.key;
+  }
+  return account.type === 'asset' ? 'other_assets' : 'other_liabilities';
+}
+
+// All categories for the add-account form, organized by group
+const CATEGORY_SUGGESTIONS: Record<string, string[]> = {
+  'Retirement': ['401k', 'roth_ira', 'ira', 'pension', 'annuity', 'hsa', '529_plan'],
+  'Investments': ['brokerage', 'rsu', 'espp', 'iso_options', 'nso_options', 'startup_equity', 'angel_investment', 'crypto', 'bond', 'treasury', 'cd', 'money_market', 'commodity', 'collectibles'],
+  'Cash & Banking': ['checking', 'savings'],
+  'Real Estate': ['real_estate'],
+  'Insurance': ['life_insurance'],
+  'Income': ['employment_income', 'interest_income', 'dividend_income', 'self_employment_income', 'tax_prepayment'],
+  'Debt & Loans': ['mortgage', 'heloc', 'auto_loan', 'student_loan', 'personal_loan', 'margin_loan'],
+  'Credit & Tax': ['credit_card', 'tax_liability'],
+};
 
 function normalizeAcctName(name: string): string {
   return name
@@ -33,6 +120,10 @@ function normalizeAcctName(name: string): string {
     .trim();
 }
 
+function labelFor(cat: string) {
+  return cat.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export default function FinanceOverview() {
   const router = useRouter();
   const { addToast } = useToast();
@@ -42,6 +133,7 @@ export default function FinanceOverview() {
   const [merging, setMerging] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editBalance, setEditBalance] = useState('');
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [form, setForm] = useState({ name: '', type: 'asset' as 'asset' | 'liability', category: '', balance: '', currency: 'USD', notes: '' });
 
   // Detect duplicate groups: same normalized name
@@ -75,21 +167,67 @@ export default function FinanceOverview() {
   const totalLiabilities = liabilities.reduce((s, a) => s + Number(a.balance), 0);
   const netWorth = totalAssets - totalLiabilities;
 
+  // Build semantic groups with accounts
+  const groupedAccounts = (() => {
+    const grouped = new Map<string, Account[]>();
+    for (const acct of accounts) {
+      const key = getSemanticGroup(acct);
+      const list = grouped.get(key) ?? [];
+      list.push(acct);
+      grouped.set(key, list);
+    }
+
+    const result: { group: SemanticGroup; accounts: Account[]; total: number }[] = [];
+
+    // Named groups
+    for (const group of SEMANTIC_GROUPS) {
+      const accts = grouped.get(group.key);
+      if (accts && accts.length > 0) {
+        const total = accts.reduce((s, a) => s + Number(a.balance), 0);
+        result.push({ group, accounts: accts.sort((a, b) => Number(b.balance) - Number(a.balance)), total });
+      }
+    }
+
+    // Other assets
+    const otherAssets = grouped.get('other_assets');
+    if (otherAssets && otherAssets.length > 0) {
+      result.push({
+        group: { key: 'other_assets', label: 'Other Assets', icon: PiggyBank, categories: [], type: 'asset' },
+        accounts: otherAssets.sort((a, b) => Number(b.balance) - Number(a.balance)),
+        total: otherAssets.reduce((s, a) => s + Number(a.balance), 0),
+      });
+    }
+
+    // Other liabilities
+    const otherLiabs = grouped.get('other_liabilities');
+    if (otherLiabs && otherLiabs.length > 0) {
+      result.push({
+        group: { key: 'other_liabilities', label: 'Other Liabilities', icon: Coins, categories: [], type: 'liability' },
+        accounts: otherLiabs.sort((a, b) => Number(b.balance) - Number(a.balance)),
+        total: otherLiabs.reduce((s, a) => s + Number(a.balance), 0),
+      });
+    }
+
+    return result;
+  })();
+
+  function toggleGroup(key: string) {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
   async function mergeDuplicates() {
     setMerging(true);
     try {
-      for (const group of dupGroups) {
-        // Keep the one with the highest balance; sum all into it
-        const keepId = group.reduce((best, a) => Number(a.balance) > Number(best.balance) ? a : best).id;
-        const deleteIds = group.filter(a => a.id !== keepId).map(a => a.id);
-        await fetch('/api/finance/merge', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ keepId, deleteIds }),
-        });
-      }
+      await fetch('/api/finance/dedup', { method: 'POST' });
       const res = await fetch('/api/finance').then(r => r.json());
       setAccounts(Array.isArray(res) ? res : res?.data ?? []);
+      addToast('Duplicates merged', 'success');
+    } catch {
+      addToast('Failed to merge duplicates', 'error');
     } finally {
       setMerging(false);
     }
@@ -111,7 +249,6 @@ export default function FinanceOverview() {
   async function saveBalance(id: string) {
     const prev = accounts;
     const newBalance = parseFloat(editBalance);
-    // Optimistic update
     setAccounts((cur) => cur.map((a) => a.id === id ? { ...a, balance: newBalance } : a));
     setEditId(null);
     try {
@@ -122,31 +259,30 @@ export default function FinanceOverview() {
       });
       const updated = await res.json() as Account;
       setAccounts((cur) => cur.map((a) => a.id === id ? updated : a));
-      addToast({ type: 'success', message: 'Balance updated' });
+      addToast('Balance updated', 'success');
     } catch {
       setAccounts(prev);
-      addToast({ type: 'error', message: 'Failed to update balance' });
+      addToast('Failed to update balance', 'error');
     }
   }
 
   async function remove(id: string) {
     const prev = accounts;
-    // Optimistic update
     setAccounts((cur) => cur.filter((a) => a.id !== id));
     try {
       await fetch(`/api/finance/${id}`, { method: 'DELETE' });
-      addToast({ type: 'success', message: 'Account removed' });
+      addToast('Account removed', 'success');
     } catch {
       setAccounts(prev);
-      addToast({ type: 'error', message: 'Failed to remove account' });
+      addToast('Failed to remove account', 'error');
     }
   }
 
   const AccountRow = ({ a }: { a: Account }) => (
-    <li className="flex items-center justify-between py-2 border-b border-gray-50 dark:border-gray-800 last:border-0">
+    <li className="flex items-center justify-between py-2.5 border-b border-gray-50 dark:border-gray-800 last:border-0">
       <div className="flex-1 min-w-0">
         <p className="text-sm text-gray-700 dark:text-gray-300 truncate">{a.name}</p>
-        <p className="text-xs text-gray-400">{a.category.replace('_', ' ')}</p>
+        <p className="text-xs text-gray-400">{labelFor(a.category)}</p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {editId === a.id ? (
@@ -186,6 +322,11 @@ export default function FinanceOverview() {
     );
   }
 
+  // Flatten category suggestions for the datalist
+  const allSuggestions = form.type === 'asset'
+    ? Object.entries(CATEGORY_SUGGESTIONS).filter(([k]) => !['Debt & Loans', 'Credit & Tax'].includes(k)).flatMap(([, v]) => v)
+    : Object.entries(CATEGORY_SUGGESTIONS).filter(([k]) => ['Debt & Loans', 'Credit & Tax'].includes(k)).flatMap(([, v]) => v);
+
   return (
     <div className="space-y-5">
       {/* Duplicate account warning */}
@@ -224,19 +365,52 @@ export default function FinanceOverview() {
       {/* Asset/Liability breakdown donut */}
       <FinanceBreakdownChart />
 
-      {/* Assets */}
-      <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Assets</h3>
-        <ul>{assets.map((a) => <AccountRow key={a.id} a={a} />)}</ul>
-        {assets.length === 0 && <p className="text-xs text-gray-400">No assets added yet</p>}
-      </div>
+      {/* Semantically grouped accounts */}
+      {groupedAccounts.map(({ group, accounts: groupAccounts, total }) => {
+        const Icon = group.icon;
+        const isLiability = group.type === 'liability';
+        const collapsed = collapsedGroups.has(group.key);
 
-      {/* Liabilities */}
-      <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Liabilities</h3>
-        <ul>{liabilities.map((a) => <AccountRow key={a.id} a={a} />)}</ul>
-        {liabilities.length === 0 && <p className="text-xs text-gray-400">No liabilities added yet</p>}
-      </div>
+        return (
+          <div key={group.key} className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+            <button
+              onClick={() => toggleGroup(group.key)}
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isLiability ? 'bg-red-50 dark:bg-red-950/30' : 'bg-sky-50 dark:bg-sky-950/30'}`}>
+                  <Icon size={16} className={isLiability ? 'text-red-500' : 'text-sky-500'} />
+                </div>
+                <div className="text-left">
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{group.label}</h3>
+                  <p className="text-xs text-gray-400">{groupAccounts.length} account{groupAccounts.length !== 1 ? 's' : ''}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-sm font-bold ${isLiability ? 'text-red-500' : 'text-gray-800 dark:text-gray-200'}`}>
+                  {fmt(total)}
+                </span>
+                {collapsed ? <ChevronDown size={16} className="text-gray-400" /> : <ChevronUp size={16} className="text-gray-400" />}
+              </div>
+            </button>
+            {!collapsed && (
+              <div className="px-4 pb-3 border-t border-gray-50 dark:border-gray-800">
+                <ul>{groupAccounts.map((a) => <AccountRow key={a.id} a={a} />)}</ul>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {accounts.length === 0 && (
+        <div className="text-center py-12">
+          <div className="w-14 h-14 bg-sky-50 dark:bg-sky-950/30 rounded-2xl flex items-center justify-center mx-auto mb-3">
+            <PiggyBank size={24} className="text-sky-500" />
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">No accounts yet</p>
+          <p className="text-xs text-gray-400 mt-1">Add your first account to start tracking your net worth</p>
+        </div>
+      )}
 
       {/* Ask Claude */}
       {accounts.length > 0 && (
@@ -255,8 +429,8 @@ export default function FinanceOverview() {
         </button>
         {adding && (
           <form onSubmit={addAccount} className="mt-3 bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800 space-y-3">
-            <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Account name" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
-            <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as 'asset' | 'liability' })} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+            <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Account name (e.g. Fidelity 401k)" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
+            <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as 'asset' | 'liability', category: '' })} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
               <option value="asset">Asset</option>
               <option value="liability">Liability</option>
             </select>
@@ -264,12 +438,12 @@ export default function FinanceOverview() {
               list="category-suggestions"
               value={form.category}
               onChange={(e) => setForm({ ...form, category: e.target.value })}
-              placeholder={form.type === 'asset' ? 'Category (e.g. 401k, iso_options…)' : 'Category (e.g. mortgage, heloc…)'}
+              placeholder="Category (e.g. 401k, brokerage, mortgage…)"
               className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
             />
             <datalist id="category-suggestions">
-              {(form.type === 'asset' ? ASSET_SUGGESTIONS : LIABILITY_SUGGESTIONS).map((c) => (
-                <option key={c} value={c} />
+              {allSuggestions.map((c) => (
+                <option key={c} value={c}>{labelFor(c)}</option>
               ))}
             </datalist>
             <input required type="number" value={form.balance} onChange={(e) => setForm({ ...form, balance: e.target.value })} placeholder="Balance ($)" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />

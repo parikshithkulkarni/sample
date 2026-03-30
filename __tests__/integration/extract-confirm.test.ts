@@ -68,10 +68,11 @@ describe('POST /api/documents/[id]/extract-confirm', () => {
   });
 
   it('updates existing accounts (same name match)', async () => {
-    // First sql call returns existing account, subsequent calls are update + doc update
+    // Call sequence: load all accounts → UPDATE account → load all properties → UPDATE doc
     mockSql
-      .mockResolvedValueOnce([{ id: 'acct-existing' }] as never) // existing check
-      .mockResolvedValueOnce([] as never)   // UPDATE
+      .mockResolvedValueOnce([{ id: 'acct-existing', name: 'Fidelity 401k' }] as never) // all accounts
+      .mockResolvedValueOnce([] as never)   // UPDATE account
+      .mockResolvedValueOnce([] as never)   // all properties
       .mockResolvedValueOnce([] as never);  // doc extracted_at update
     const res = await extractConfirmPOST(
       makeConfirmReq('doc-1', {
