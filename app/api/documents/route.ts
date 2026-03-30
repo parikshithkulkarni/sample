@@ -91,6 +91,25 @@ export async function POST(req: Request) {
     `;
 
     const [doc] = await sql`SELECT id, name, tags, summary, insights, added_at FROM documents WHERE id = ${documentId}`;
+
+    // Generate and store embeddings in the background (non-blocking)
+    if (process.env.OPENAI_API_KEY) {
+      (async () => {
+        try {
+          const { embedBatch } = await import('@/lib/embeddings');
+          const rows = await sql`SELECT id, content FROM chunks WHERE document_id = ${documentId} ORDER BY chunk_index` as { id: string; content: string }[];
+          const BATCH = 96;
+          for (let i = 0; i < rows.length; i += BATCH) {
+            const slice = rows.slice(i, i + BATCH);
+            const vectors = await embedBatch(slice.map((c) => c.content));
+            for (let j = 0; j < slice.length; j++) {
+              await sql`UPDATE chunks SET embedding = ${`[${vectors[j].join(',')}]`}::vector WHERE id = ${slice[j].id}`;
+            }
+          }
+        } catch { /* non-fatal — search falls back to FTS */ }
+      })();
+    }
+
     return Response.json({ ...doc, chunkCount: chunks.length });
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });

@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Send, Clock, TrendingUp, AlertTriangle, Building2, DollarSign, Calculator } from 'lucide-react';
+import NetWorthChart from '@/components/net-worth-chart';
 import { fmt, daysUntil } from '@/lib/utils';
 
 interface Deadline {
@@ -139,6 +140,10 @@ export default function DashboardCards() {
               <Building2 size={12} /> +{fmt(totalEquity)} real estate equity across {properties.length} propert{properties.length !== 1 ? 'ies' : 'y'}
             </div>
           )}
+          {/* Sparkline */}
+          <div className="mt-3 -mx-1">
+            <NetWorthChart compact />
+          </div>
         </div>
       )}
 

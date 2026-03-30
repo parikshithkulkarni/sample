@@ -1,35 +1,31 @@
-// Voyage AI — voyage-3-lite produces 512-dimensional embeddings
-// Docs: https://docs.voyageai.com/docs/embeddings
+// Uses OpenAI text-embedding-3-small with 512 dimensions.
+// Falls back gracefully (callers check OPENAI_API_KEY before calling).
 
-interface VoyageEmbedResponse {
-  data: Array<{ embedding: number[] }>;
+const OPENAI_BASE = 'https://api.openai.com/v1';
+const MODEL       = 'text-embedding-3-small';
+const DIMENSIONS  = 512;
+
+interface EmbedResponse {
+  data: { embedding: number[]; index: number }[];
 }
 
-export async function embed(texts: string[]): Promise<number[][]> {
+export async function embedBatch(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
-
-  const response = await fetch('https://api.voyageai.com/v1/embeddings', {
+  const res = await fetch(`${OPENAI_BASE}/embeddings`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${process.env.VOYAGE_API_KEY}`,
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
     },
-    body: JSON.stringify({
-      input: texts,
-      model: 'voyage-3-lite',
-    }),
+    body: JSON.stringify({ model: MODEL, input: texts, dimensions: DIMENSIONS }),
   });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Voyage AI error ${response.status}: ${body}`);
-  }
-
-  const json = (await response.json()) as VoyageEmbedResponse;
-  return json.data.map((d) => d.embedding);
+  if (!res.ok) throw new Error(`OpenAI embeddings ${res.status}: ${await res.text()}`);
+  const json = (await res.json()) as EmbedResponse;
+  // Sort by index to ensure order matches input
+  return json.data.sort((a, b) => a.index - b.index).map((d) => d.embedding);
 }
 
 export async function embedOne(text: string): Promise<number[]> {
-  const [embedding] = await embed([text]);
-  return embedding;
+  const [vec] = await embedBatch([text]);
+  return vec;
 }

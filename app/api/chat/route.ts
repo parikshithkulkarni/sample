@@ -9,11 +9,12 @@ import { SYSTEM_PROMPT } from '@/lib/prompts';
 import { sql } from '@/lib/db';
 
 export const maxDuration = 60;
+export const runtime = 'nodejs'; // keep alive for background message saving
 
-type AccountRow    = { name: string; type: string; category: string; balance: number; currency: string; notes: string | null };
-type PropertyRow   = { address: string; purchase_price: number | null; market_value: number | null; mortgage_balance: number | null; notes: string | null };
-type DeadlineRow   = { title: string; due_date: string; category: string };
-type RentalRow     = { address: string; total_rent: number; total_expenses: number };
+type AccountRow  = { name: string; type: string; category: string; balance: number; currency: string; notes: string | null };
+type PropertyRow = { address: string; purchase_price: number | null; market_value: number | null; mortgage_balance: number | null; notes: string | null };
+type DeadlineRow = { title: string; due_date: string; category: string };
+type RentalRow   = { address: string; total_rent: number; total_expenses: number };
 
 function fmtNum(n: number | null, currency = 'USD') {
   if (n == null) return 'unknown';
@@ -25,7 +26,6 @@ function daysUntil(dateStr: string) {
   return Math.round((new Date(dateStr + 'T00:00:00').getTime() - today.getTime()) / 86400000);
 }
 
-// ── Live financial snapshot injected into every chat ─────────────────────────
 async function buildLiveContext(): Promise<string> {
   try {
     const [accountsData, propertiesData, deadlinesData, rentalData] = await Promise.all([
@@ -59,7 +59,6 @@ async function buildLiveContext(): Promise<string> {
       '## Your Live Financial Dashboard\n',
       `**Net Worth: ${fmtNum(totalAssets - totalLiabs)}** (Assets: ${fmtNum(totalAssets)} — Liabilities: ${fmtNum(totalLiabs)})\n`,
     ];
-
     if (assets.length > 0) {
       lines.push('**Assets:**');
       assets.forEach((a) => lines.push(`- ${a.name} [${a.category}]: ${fmtNum(Number(a.balance), a.currency)}${a.notes ? ` — ${a.notes}` : ''}`));
@@ -73,9 +72,9 @@ async function buildLiveContext(): Promise<string> {
     if (properties.length > 0) {
       lines.push('**Rental Properties:**');
       properties.forEach((p) => {
-        const equity  = p.market_value && p.mortgage_balance ? Number(p.market_value) - Number(p.mortgage_balance) : null;
-        const rental  = rentals.find((r) => r.address === p.address);
-        const noi     = rental ? Number(rental.total_rent) - Number(rental.total_expenses) : null;
+        const equity = p.market_value && p.mortgage_balance ? Number(p.market_value) - Number(p.mortgage_balance) : null;
+        const rental = rentals.find((r) => r.address === p.address);
+        const noi    = rental ? Number(rental.total_rent) - Number(rental.total_expenses) : null;
         let line = `- ${p.address}: Market ${fmtNum(p.market_value)}, Mortgage ${fmtNum(p.mortgage_balance)}, Equity ${fmtNum(equity)}`;
         if (noi !== null) line += `, ${new Date().getFullYear()} NOI ${fmtNum(noi)}`;
         lines.push(line);
@@ -90,14 +89,12 @@ async function buildLiveContext(): Promise<string> {
         lines.push(`- ${d.title} (${d.category.replace('_', ' ')}): ${d.due_date} — ${label}`);
       });
     }
-
     return lines.join('\n');
   } catch {
     return '';
   }
 }
 
-// ── Load full text for @mentioned documents ──────────────────────────────────
 async function loadMentionedDocs(docIds: string[]): Promise<string> {
   if (docIds.length === 0) return '';
   const parts: string[] = [];
@@ -106,16 +103,13 @@ async function loadMentionedDocs(docIds: string[]): Promise<string> {
       const [docRow] = await sql`SELECT name FROM documents WHERE id = ${id}` as { name: string }[];
       if (!docRow) continue;
       const chunks = await sql`SELECT content FROM chunks WHERE document_id = ${id} ORDER BY chunk_index` as { content: string }[];
-      const text = chunks.map((c) => c.content).join('\n\n');
-      parts.push(`## Attached Document: "${docRow.name}"\n${text}`);
-    } catch {
-      // skip if doc not found
-    }
+      parts.push(`## Attached Document: "${docRow.name}"\n${chunks.map((c) => c.content).join('\n\n')}`);
+    } catch { /* skip */ }
   }
   return parts.join('\n\n---\n\n');
 }
 
-// ── save_to_dashboard tool ────────────────────────────────────────────────────
+// ── Dashboard tools ───────────────────────────────────────────────────────────
 const ASSET_CATS     = new Set(['401k','roth_ira','brokerage','rsu','espp','real_estate','savings','checking','crypto','other']);
 const LIABILITY_CATS = new Set(['mortgage','auto_loan','credit_card','student_loan','other']);
 
@@ -123,10 +117,9 @@ async function saveAccounts(accounts: { name: string; type: string; category: st
   const saved: string[] = [];
   for (const acct of accounts) {
     if (!acct.name || !acct.type) continue;
-    const validCats = acct.type === 'asset' ? ASSET_CATS : LIABILITY_CATS;
-    const category  = validCats.has(acct.category) ? acct.category : 'other';
-    const balance   = isNaN(acct.balance) ? 0 : acct.balance;
-    const existing  = await sql`SELECT id FROM accounts WHERE lower(name) = lower(${acct.name})` as { id: string }[];
+    const category = (acct.type === 'asset' ? ASSET_CATS : LIABILITY_CATS).has(acct.category) ? acct.category : 'other';
+    const balance  = isNaN(acct.balance) ? 0 : acct.balance;
+    const existing = await sql`SELECT id FROM accounts WHERE lower(name) = lower(${acct.name})` as { id: string }[];
     if (existing.length > 0) {
       await sql`UPDATE accounts SET type=${acct.type}, category=${category}, balance=${balance}, currency=${acct.currency ?? 'USD'}, notes=${acct.notes ?? null}, updated_at=NOW() WHERE id=${existing[0].id}`;
       saved.push(`${acct.name} (updated)`);
@@ -134,6 +127,10 @@ async function saveAccounts(accounts: { name: string; type: string; category: st
       await sql`INSERT INTO accounts (name,type,category,balance,currency,notes) VALUES (${acct.name},${acct.type},${category},${balance},${acct.currency ?? 'USD'},${acct.notes ?? null})`;
       saved.push(acct.name);
     }
+  }
+  if (saved.length > 0) {
+    const { takeNetWorthSnapshot } = await import('@/lib/snapshots');
+    takeNetWorthSnapshot().catch(() => {});
   }
   return saved;
 }
@@ -164,10 +161,26 @@ export async function POST(req: Request) {
 
   const body = await req.json();
   const { messages } = body;
-  const mentionedDocIds: string[] = (body.data as { mentionedDocIds?: string[] })?.mentionedDocIds ?? [];
+  const data = (body.data ?? {}) as { mentionedDocIds?: string[]; sessionId?: string };
+  const mentionedDocIds: string[] = data.mentionedDocIds ?? [];
+  const incomingSessionId: string = data.sessionId ?? '';
 
   const lastUser = [...messages].reverse().find((m: { role: string }) => m.role === 'user');
   const query: string = lastUser?.content ?? '';
+
+  // Resolve or create session
+  let resolvedSessionId = incomingSessionId;
+  let isNewSession = false;
+  try {
+    if (!resolvedSessionId) {
+      const [newSession] = await sql`
+        INSERT INTO chat_sessions (title) VALUES (${query.slice(0, 60) || 'New Chat'})
+        RETURNING id
+      ` as { id: string }[];
+      resolvedSessionId = newSession.id;
+      isNewSession = true;
+    }
+  } catch { /* non-fatal */ }
 
   // Run all context fetches in parallel
   const [chunks, liveContext, mentionedContext] = await Promise.all([
@@ -176,13 +189,11 @@ export async function POST(req: Request) {
     loadMentionedDocs(mentionedDocIds),
   ]);
 
-  const docContext = formatContext(chunks);
-
   const systemWithContext = [
     SYSTEM_PROMPT,
-    liveContext      ? `\n\n${liveContext}`      : '',
-    mentionedContext ? `\n\n${mentionedContext}`  : '',
-    docContext       ? `\n\n${docContext}`        : '',
+    liveContext      ? `\n\n${liveContext}`     : '',
+    mentionedContext ? `\n\n${mentionedContext}` : '',
+    formatContext(chunks) ? `\n\n${formatContext(chunks)}` : '',
   ].join('');
 
   const result = streamText({
@@ -197,16 +208,16 @@ export async function POST(req: Request) {
       }),
 
       save_to_dashboard: tool({
-        description: 'Save financial accounts or rental properties directly to the user\'s Finance or Rentals page. Use this when the user says "save this", "add this to my dashboard", "store in finance", "add to rentals", or similar. Extract the data from the conversation/document and save it.',
+        description: 'Save financial accounts or rental properties to the Finance or Rentals page. Use when user says "save this", "add to dashboard", "store in finance", "add to rentals", etc.',
         parameters: z.object({
           accounts: z.array(z.object({
-            name:     z.string().describe('e.g. "Chase Checking", "Fidelity 401k", "Amex Gold"'),
+            name:     z.string(),
             type:     z.enum(['asset', 'liability']),
             category: z.string().describe('Asset: 401k|roth_ira|brokerage|rsu|espp|real_estate|savings|checking|crypto|other  Liability: mortgage|auto_loan|credit_card|student_loan|other'),
-            balance:  z.number().describe('Balance in USD as a plain number'),
+            balance:  z.number(),
             currency: z.string().default('USD'),
             notes:    z.string().optional(),
-          })).optional().describe('Accounts to save to Finance page'),
+          })).optional(),
           properties: z.array(z.object({
             address:          z.string(),
             purchase_price:   z.number().nullable().optional(),
@@ -214,7 +225,7 @@ export async function POST(req: Request) {
             market_value:     z.number().nullable().optional(),
             mortgage_balance: z.number().nullable().optional(),
             notes:            z.string().optional(),
-          })).optional().describe('Properties to save to Rentals page'),
+          })).optional(),
         }),
         execute: async ({ accounts, properties }) => {
           const [savedAccts, savedProps] = await Promise.all([
@@ -224,12 +235,64 @@ export async function POST(req: Request) {
           const parts: string[] = [];
           if (savedAccts.length > 0) parts.push(`${savedAccts.length} account${savedAccts.length !== 1 ? 's' : ''} saved to Finance: ${savedAccts.join(', ')}`);
           if (savedProps.length > 0) parts.push(`${savedProps.length} propert${savedProps.length !== 1 ? 'ies' : 'y'} saved to Rentals: ${savedProps.join(', ')}`);
-          return parts.length > 0 ? `✓ ${parts.join(' · ')}` : 'Nothing new to save — data may already be in your dashboard.';
+          return parts.length > 0 ? `✓ ${parts.join(' · ')}` : 'Nothing new to save.';
+        },
+      }),
+
+      delete_from_dashboard: tool({
+        description: 'Delete accounts or properties from the dashboard. Use when user says "delete", "remove", "get rid of" a specific account or property.',
+        parameters: z.object({
+          accountNames:      z.array(z.string()).optional().describe('Account names to delete (case-insensitive)'),
+          propertyAddresses: z.array(z.string()).optional().describe('Property addresses to delete (case-insensitive)'),
+        }),
+        execute: async ({ accountNames, propertyAddresses }) => {
+          const deleted: string[] = [];
+          for (const name of accountNames ?? []) {
+            const res = await sql`DELETE FROM accounts WHERE lower(name) = lower(${name}) RETURNING name` as { name: string }[];
+            if (res.length > 0) { deleted.push(`account "${res[0].name}"`); }
+          }
+          for (const addr of propertyAddresses ?? []) {
+            const res = await sql`DELETE FROM properties WHERE lower(address) = lower(${addr}) RETURNING address` as { address: string }[];
+            if (res.length > 0) { deleted.push(`property "${res[0].address}"`); }
+          }
+          if (deleted.length > 0) {
+            const { takeNetWorthSnapshot } = await import('@/lib/snapshots');
+            takeNetWorthSnapshot().catch(() => {});
+          }
+          return deleted.length > 0
+            ? `✓ Deleted: ${deleted.join(', ')}`
+            : 'No matching items found. Check the exact name or address.';
         },
       }),
     },
     maxSteps: 5,
   });
 
-  return result.toDataStreamResponse();
+  // Save messages to session in background after streaming completes
+  if (resolvedSessionId) {
+    result.text.then(async (assistantText) => {
+      try {
+        await sql`
+          INSERT INTO chat_messages (session_id, role, content) VALUES
+            (${resolvedSessionId}, 'user',      ${lastUser?.content ?? ''}),
+            (${resolvedSessionId}, 'assistant', ${assistantText})
+        `;
+        await sql`
+          UPDATE chat_sessions
+          SET updated_at = now()
+              ${isNewSession ? sql`, title = ${(lastUser?.content ?? 'New Chat').slice(0, 60)}` : sql``}
+          WHERE id = ${resolvedSessionId}
+        `;
+      } catch { /* non-fatal */ }
+    }).catch(() => {});
+  }
+
+  const streamResponse = result.toDataStreamResponse();
+  return new Response(streamResponse.body, {
+    status: streamResponse.status,
+    headers: {
+      ...Object.fromEntries(streamResponse.headers.entries()),
+      'X-Session-Id': resolvedSessionId,
+    },
+  });
 }

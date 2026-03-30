@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, Check, X } from 'lucide-react';
 import { fmt } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
+import NetWorthChart from '@/components/net-worth-chart';
 
 interface Account {
   id: string;
@@ -112,6 +113,9 @@ export default function FinanceOverview() {
           <div><span className="text-gray-400">Liabilities </span><span className="font-medium text-red-500">{fmt(totalLiabilities)}</span></div>
         </div>
       </div>
+
+      {/* Net worth trend chart */}
+      <NetWorthChart />
 
       {/* Assets */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">

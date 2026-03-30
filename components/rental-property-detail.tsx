@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Plus, Trash2, TrendingUp, Pencil, Check, X } from 'lucide-react';
+import RentalCashflowChart from '@/components/rental-cashflow-chart';
 import { fmt } from '@/lib/utils';
 
 interface Property {
@@ -226,6 +227,21 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
           </div>
         )}
       </div>
+
+      {/* Cashflow chart */}
+      {records.length > 0 && (() => {
+        const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const chartData = Array.from({ length: 12 }, (_, i) => {
+          const rec = records.find((r) => r.month === i + 1);
+          return {
+            label: MONTHS_SHORT[i],
+            rent: rec ? Number(rec.rent_collected) : 0,
+            expenses: rec ? Object.values(rec.expenses as Record<string, number>).reduce((a, b) => a + Number(b), 0) : 0,
+            mortgage: rec ? Number(rec.mortgage_pmt) : 0,
+          };
+        }).filter((d) => d.rent > 0 || d.expenses > 0);
+        return <RentalCashflowChart data={chartData} year={selectedYear} />;
+      })()}
 
       {/* Monthly records table */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">

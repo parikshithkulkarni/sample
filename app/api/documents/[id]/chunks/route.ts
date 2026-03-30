@@ -24,6 +24,24 @@ export async function POST(
       FROM unnest(${indices}::int[], ${chunks}::text[]) AS t(idx, content)
     `;
 
+    // Generate embeddings for appended chunks in background
+    if (process.env.OPENAI_API_KEY) {
+      (async () => {
+        try {
+          const { embedBatch } = await import('@/lib/embeddings');
+          const rows = await sql`SELECT c.id, c.content FROM chunks c WHERE c.document_id = ${id} AND c.embedding IS NULL ORDER BY c.chunk_index` as { id: string; content: string }[];
+          const BATCH = 96;
+          for (let i = 0; i < rows.length; i += BATCH) {
+            const slice = rows.slice(i, i + BATCH);
+            const vectors = await embedBatch(slice.map((c) => c.content));
+            for (let j = 0; j < slice.length; j++) {
+              await sql`UPDATE chunks SET embedding = ${`[${vectors[j].join(',')}]`}::vector WHERE id = ${slice[j].id}`;
+            }
+          }
+        } catch { /* non-fatal */ }
+      })();
+    }
+
     return Response.json({ ok: true, added: chunks.length });
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });

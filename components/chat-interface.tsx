@@ -1,8 +1,9 @@
 'use client';
 
-import { useChat } from 'ai/react';
-import { Send, Globe, FileText, Database, X } from 'lucide-react';
+import { useChat, type Message } from 'ai/react';
+import { Send, Globe, FileText, Database, X, History } from 'lucide-react';
 import { useRef, useEffect, useState, useCallback } from 'react';
+import ChatHistoryPanel from '@/components/chat-history-panel';
 
 interface Props {
   initialQuestion?: string;
@@ -13,7 +14,6 @@ interface DocOption {
   name: string;
 }
 
-// Safe citation renderer — no dangerouslySetInnerHTML
 function MessageContent({ content }: { content: string }) {
   const parts = content.split(/(\[(?:doc|web): [^\]]+\])/g);
   return (
@@ -21,20 +21,16 @@ function MessageContent({ content }: { content: string }) {
       {parts.map((part, i) => {
         const docMatch = part.match(/^\[doc: ([^\]]+)\]$/);
         const webMatch = part.match(/^\[web: ([^\]]+)\]$/);
-        if (docMatch) {
-          return (
-            <span key={i} className="inline-flex items-center gap-1 text-xs bg-sky-50 text-sky-700 px-1.5 py-0.5 rounded font-medium mx-0.5">
-              <FileText size={10} /> {docMatch[1]}
-            </span>
-          );
-        }
-        if (webMatch) {
-          return (
-            <span key={i} className="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-medium mx-0.5">
-              <Globe size={10} /> {webMatch[1]}
-            </span>
-          );
-        }
+        if (docMatch) return (
+          <span key={i} className="inline-flex items-center gap-1 text-xs bg-sky-50 text-sky-700 px-1.5 py-0.5 rounded font-medium mx-0.5">
+            <FileText size={10} /> {docMatch[1]}
+          </span>
+        );
+        if (webMatch) return (
+          <span key={i} className="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-medium mx-0.5">
+            <Globe size={10} /> {webMatch[1]}
+          </span>
+        );
         return <span key={i} className="whitespace-pre-wrap">{part}</span>;
       })}
     </span>
@@ -42,20 +38,32 @@ function MessageContent({ content }: { content: string }) {
 }
 
 export default function ChatInterface({ initialQuestion }: Props) {
-  const { messages, input, setInput, handleInputChange, handleSubmit, isLoading, append } = useChat({
-    api: '/api/chat',
-  });
+  // Session state
+  const [sessionId, setSessionId]       = useState<string | null>(null);
+  const [showHistory, setShowHistory]   = useState(false);
 
   // @mention state
-  const [allDocs, setAllDocs] = useState<DocOption[]>([]);
+  const [allDocs, setAllDocs]             = useState<DocOption[]>([]);
   const [mentionedDocs, setMentionedDocs] = useState<DocOption[]>([]);
-  const [showPicker, setShowPicker] = useState(false);
+  const [showPicker, setShowPicker]       = useState(false);
   const [mentionSearch, setMentionSearch] = useState('');
-  const [mentionStart, setMentionStart] = useState(-1); // index of '@' in input
-  const inputRef = useRef<HTMLInputElement>(null);
-  const pickerRef = useRef<HTMLDivElement>(null);
+  const [mentionStart, setMentionStart]   = useState(-1);
 
-  // Fetch docs once
+  const inputRef  = useRef<HTMLInputElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const sentRef   = useRef(false);
+
+  const { messages, input, setInput, setMessages, handleInputChange,
+          handleSubmit, isLoading, append } = useChat({
+    api: '/api/chat',
+    onResponse: (response) => {
+      const sid = response.headers.get('X-Session-Id');
+      if (sid && !sessionId) setSessionId(sid);
+    },
+  });
+
+  // Load docs for @mention
   useEffect(() => {
     fetch('/api/documents')
       .then((r) => r.json())
@@ -63,59 +71,7 @@ export default function ChatInterface({ initialQuestion }: Props) {
       .catch(() => {});
   }, []);
 
-  // Detect @mention while typing
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    handleInputChange(e);
-    const val = e.target.value;
-    const cursor = e.target.selectionStart ?? val.length;
-    // Find the last @ before cursor that hasn't been closed by a space
-    const textBeforeCursor = val.slice(0, cursor);
-    const atIdx = textBeforeCursor.lastIndexOf('@');
-    if (atIdx !== -1) {
-      const afterAt = textBeforeCursor.slice(atIdx + 1);
-      if (!afterAt.includes(' ')) {
-        setMentionStart(atIdx);
-        setMentionSearch(afterAt.toLowerCase());
-        setShowPicker(true);
-        return;
-      }
-    }
-    setShowPicker(false);
-    setMentionStart(-1);
-  }, [handleInputChange]);
-
-  // Pick a doc from the mention dropdown
-  function pickDoc(doc: DocOption) {
-    // Remove "@search" text from input
-    const before = input.slice(0, mentionStart);
-    const after = input.slice(mentionStart + 1 + mentionSearch.length);
-    setInput(before + after);
-    // Add to mentioned list (deduplicate)
-    setMentionedDocs((prev) => prev.find((d) => d.id === doc.id) ? prev : [...prev, doc]);
-    setShowPicker(false);
-    setMentionStart(-1);
-    inputRef.current?.focus();
-  }
-
-  function removeMention(id: string) {
-    setMentionedDocs((prev) => prev.filter((d) => d.id !== id));
-  }
-
-  const filteredDocs = allDocs.filter(
-    (d) => d.name.toLowerCase().includes(mentionSearch) && !mentionedDocs.find((m) => m.id === d.id)
-  ).slice(0, 6);
-
-  // Close picker on outside click
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setShowPicker(false);
-    }
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  // Auto-send initial question from ?q= param
-  const sentRef = useRef(false);
+  // Auto-send ?q= param
   useEffect(() => {
     if (initialQuestion && !sentRef.current) {
       sentRef.current = true;
@@ -123,19 +79,89 @@ export default function ChatInterface({ initialQuestion }: Props) {
     }
   }, [initialQuestion, append]);
 
-  const bottomRef = useRef<HTMLDivElement>(null);
+  // Auto-scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // @mention detection
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    handleInputChange(e);
+    const val = e.target.value;
+    const cursor = e.target.selectionStart ?? val.length;
+    const textBeforeCursor = val.slice(0, cursor);
+    const atIdx = textBeforeCursor.lastIndexOf('@');
+    if (atIdx !== -1) {
+      const afterAt = textBeforeCursor.slice(atIdx + 1);
+      if (!afterAt.includes(' ')) {
+        setMentionStart(atIdx); setMentionSearch(afterAt.toLowerCase()); setShowPicker(true); return;
+      }
+    }
+    setShowPicker(false); setMentionStart(-1);
+  }, [handleInputChange]);
+
+  function pickDoc(doc: DocOption) {
+    const before = input.slice(0, mentionStart);
+    const after  = input.slice(mentionStart + 1 + mentionSearch.length);
+    setInput(before + after);
+    setMentionedDocs((prev) => prev.find((d) => d.id === doc.id) ? prev : [...prev, doc]);
+    setShowPicker(false); setMentionStart(-1);
+    inputRef.current?.focus();
+  }
+
+  // Close picker on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setShowPicker(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const filteredDocs = allDocs
+    .filter((d) => d.name.toLowerCase().includes(mentionSearch) && !mentionedDocs.find((m) => m.id === d.id))
+    .slice(0, 6);
+
   function onSubmit(e: React.FormEvent) {
     const ids = mentionedDocs.map((d) => d.id);
-    handleSubmit(e, ids.length > 0 ? { data: { mentionedDocIds: ids } } : undefined);
+    handleSubmit(e, {
+      data: {
+        sessionId: sessionId ?? '',
+        mentionedDocIds: ids,
+      },
+    });
     setMentionedDocs([]);
+  }
+
+  // Load a past session
+  async function loadSession(id: string) {
+    try {
+      const res  = await fetch(`/api/chat/sessions/${id}`);
+      const data = await res.json() as { messages: { id: string; role: string; content: string }[] };
+      const msgs: Message[] = data.messages.map((m) => ({ id: m.id, role: m.role as 'user' | 'assistant', content: m.content }));
+      setMessages(msgs);
+      setSessionId(id);
+    } catch { /* ignore */ }
+  }
+
+  function startNewChat() {
+    setMessages([]);
+    setSessionId(null);
+    sentRef.current = false;
   }
 
   return (
     <div className="flex flex-col h-full">
+      {/* History panel overlay */}
+      {showHistory && (
+        <ChatHistoryPanel
+          currentSessionId={sessionId}
+          onSelectSession={loadSession}
+          onNewChat={() => { startNewChat(); setShowHistory(false); }}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-2">
         {messages.length === 0 && (
@@ -150,13 +176,11 @@ export default function ChatInterface({ initialQuestion }: Props) {
         )}
         {messages.map((m) => (
           <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div
-              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                m.role === 'user'
-                  ? 'bg-sky-600 text-white rounded-br-sm whitespace-pre-wrap'
-                  : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-              }`}
-            >
+            <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+              m.role === 'user'
+                ? 'bg-sky-600 text-white rounded-br-sm whitespace-pre-wrap'
+                : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+            }`}>
               {m.role === 'user' ? m.content : <MessageContent content={m.content} />}
             </div>
           </div>
@@ -184,7 +208,7 @@ export default function ChatInterface({ initialQuestion }: Props) {
               <span key={doc.id} className="flex items-center gap-1 text-xs bg-sky-100 text-sky-700 px-2 py-1 rounded-full font-medium">
                 <FileText size={11} />
                 <span className="max-w-[140px] truncate">{doc.name}</span>
-                <button onClick={() => removeMention(doc.id)} className="hover:text-sky-900 ml-0.5">
+                <button onClick={() => setMentionedDocs((p) => p.filter((d) => d.id !== doc.id))} className="hover:text-sky-900 ml-0.5">
                   <X size={11} />
                 </button>
               </span>
@@ -192,12 +216,17 @@ export default function ChatInterface({ initialQuestion }: Props) {
           </div>
         )}
 
-        {/* Source hints */}
+        {/* Source hints + history button */}
         <div className="flex items-center gap-3 text-xs text-gray-400 mb-2">
           <span className="flex items-center gap-1"><Database size={11} /> Live data</span>
           <span className="flex items-center gap-1"><FileText size={11} /> Docs</span>
           <span className="flex items-center gap-1"><Globe size={11} /> Web</span>
-          <span className="ml-auto text-sky-400 font-medium">@ to attach doc</span>
+          <span className="ml-auto flex items-center gap-2">
+            <span className="text-sky-400 font-medium">@ to attach</span>
+            <button onClick={() => setShowHistory(true)} className="flex items-center gap-1 text-gray-400 hover:text-gray-600">
+              <History size={13} /> History
+            </button>
+          </span>
         </div>
 
         {/* @mention picker */}

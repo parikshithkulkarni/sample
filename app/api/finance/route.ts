@@ -38,5 +38,9 @@ export async function POST(req: Request) {
     VALUES (${name}, ${type}, ${category}, ${balance}, ${currency}, ${notes ?? null})
     RETURNING *
   `;
+  // Update today's net worth snapshot
+  const { takeNetWorthSnapshot } = await import('@/lib/snapshots');
+  takeNetWorthSnapshot().catch(() => {});
+
   return Response.json(row, { status: 201 });
 }

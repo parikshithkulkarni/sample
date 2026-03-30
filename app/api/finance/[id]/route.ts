@@ -21,6 +21,8 @@ export async function PATCH(
     WHERE id = ${id}
     RETURNING *
   `;
+  const { takeNetWorthSnapshot } = await import('@/lib/snapshots');
+  takeNetWorthSnapshot().catch(() => {});
   return Response.json(row);
 }
 
@@ -33,5 +35,7 @@ export async function DELETE(
 
   const { id } = await params;
   await sql`DELETE FROM accounts WHERE id = ${id}`;
+  const { takeNetWorthSnapshot } = await import('@/lib/snapshots');
+  takeNetWorthSnapshot().catch(() => {});
   return new Response(null, { status: 204 });
 }

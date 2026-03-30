@@ -96,6 +96,44 @@ export async function runMigrations() {
   // Add extracted_at to documents if not present (tracks which docs have had data saved)
   await sql`ALTER TABLE documents ADD COLUMN IF NOT EXISTS extracted_at TIMESTAMPTZ`;
 
+  // ── Semantic search (pgvector) ──────────────────────────────────────────────
+  await sql`CREATE EXTENSION IF NOT EXISTS vector`;
+  await sql`ALTER TABLE chunks ADD COLUMN IF NOT EXISTS embedding vector(512)`;
+  await sql`CREATE INDEX IF NOT EXISTS chunks_embedding_idx ON chunks USING hnsw (embedding vector_cosine_ops)`;
+
+  // ── Chat history ────────────────────────────────────────────────────────────
+  await sql`
+    CREATE TABLE IF NOT EXISTS chat_sessions (
+      id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      title      TEXT NOT NULL DEFAULT 'New Chat',
+      created_at TIMESTAMPTZ DEFAULT now(),
+      updated_at TIMESTAMPTZ DEFAULT now()
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      session_id UUID NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+      role       TEXT NOT NULL CHECK (role IN ('user','assistant')),
+      content    TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT now()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS chat_messages_session_idx ON chat_messages (session_id, created_at)`;
+
+  // ── Net worth snapshots ─────────────────────────────────────────────────────
+  await sql`
+    CREATE TABLE IF NOT EXISTS net_worth_snapshots (
+      id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      snapshot_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      net_worth     NUMERIC(15,2) NOT NULL,
+      total_assets  NUMERIC(15,2) NOT NULL,
+      total_liabs   NUMERIC(15,2) NOT NULL,
+      UNIQUE (snapshot_date)
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS net_worth_snapshots_date_idx ON net_worth_snapshots (snapshot_date DESC)`;
+
   // Admin users — stores hashed credentials so no env vars needed after first setup
   await sql`
     CREATE TABLE IF NOT EXISTS admin_users (

@@ -8,33 +8,61 @@ export interface RetrievedChunk {
   rank: number;
 }
 
-/**
- * Full-text search over chunks using PostgreSQL tsvector — no embedding API needed.
- * Uses websearch_to_tsquery so natural language queries like "RNOR tax strategy" work.
- */
-export async function searchChunks(
-  query: string,
-  topK = 12,
-): Promise<RetrievedChunk[]> {
-  if (!query.trim()) return [];
+/** PostgreSQL full-text search — always available, no API key needed. */
+async function searchChunksFTS(query: string, topK: number): Promise<RetrievedChunk[]> {
+  const rows = await sql`
+    SELECT
+      c.document_id   AS "documentId",
+      d.name          AS "documentName",
+      c.chunk_index   AS "chunkIndex",
+      c.content,
+      ts_rank(c.tsv, websearch_to_tsquery('english', ${query})) AS rank
+    FROM chunks c
+    JOIN documents d ON d.id = c.document_id
+    WHERE c.tsv @@ websearch_to_tsquery('english', ${query})
+    ORDER BY rank DESC
+    LIMIT ${topK}
+  `;
+  return rows as RetrievedChunk[];
+}
 
+/** Vector cosine similarity search — requires OPENAI_API_KEY + pgvector. */
+async function searchChunksVector(query: string, topK: number): Promise<RetrievedChunk[]> {
+  const { embedOne } = await import('@/lib/embeddings');
+  const embedding = await embedOne(query);
+  const vecLiteral = `[${embedding.join(',')}]`;
+
+  const rows = await sql`
+    SELECT
+      c.document_id   AS "documentId",
+      d.name          AS "documentName",
+      c.chunk_index   AS "chunkIndex",
+      c.content,
+      (1 - (c.embedding <=> ${vecLiteral}::vector))::float AS rank
+    FROM chunks c
+    JOIN documents d ON d.id = c.document_id
+    WHERE c.embedding IS NOT NULL
+    ORDER BY c.embedding <=> ${vecLiteral}::vector
+    LIMIT ${topK}
+  `;
+  return rows as RetrievedChunk[];
+}
+
+/**
+ * Hybrid search: uses semantic vector similarity when OPENAI_API_KEY is set,
+ * falls back to PostgreSQL full-text search otherwise.
+ */
+export async function searchChunks(query: string, topK = 12): Promise<RetrievedChunk[]> {
+  if (!query.trim()) return [];
   try {
-    const rows = await sql`
-      SELECT
-        c.document_id   AS "documentId",
-        d.name          AS "documentName",
-        c.chunk_index   AS "chunkIndex",
-        c.content,
-        ts_rank(c.tsv, websearch_to_tsquery('english', ${query})) AS rank
-      FROM chunks c
-      JOIN documents d ON d.id = c.document_id
-      WHERE c.tsv @@ websearch_to_tsquery('english', ${query})
-      ORDER BY rank DESC
-      LIMIT ${topK}
-    `;
-    return rows as RetrievedChunk[];
+    if (process.env.OPENAI_API_KEY) {
+      const results = await searchChunksVector(query, topK);
+      // If no indexed chunks yet, fall through to FTS
+      if (results.length > 0) return results;
+    }
+    return await searchChunksFTS(query, topK);
   } catch {
-    return [];
+    try { return await searchChunksFTS(query, topK); } catch { return []; }
   }
 }
 

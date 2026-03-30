@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
-import { runMigrations } from '@/lib/migrate';
+import { runMigrations } from '@/lib/db';
 
 export const maxDuration = 30;
 
