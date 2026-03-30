@@ -115,9 +115,11 @@ CORRECT: 450000   WRONG: "450,000" or "$450k"
     });
 
     const text = (msg.content[0] as { type: string; text: string }).text;
-    // Anchor on the known top-level key to avoid matching embedded JSON in document content
-    const start = text.indexOf('{"accounts"');
-    const end = start !== -1 ? text.lastIndexOf('}', text.length) : -1;
+    // Find the outermost JSON object (handles any key ordering from Claude)
+    const anchors = ['{"accounts"', '{"properties"', '{  "accounts"', '{  "properties"', '{ "accounts"', '{ "properties"']
+      .map(a => text.indexOf(a)).filter(i => i !== -1);
+    const start = anchors.length > 0 ? Math.min(...anchors) : text.indexOf('{');
+    const end = start !== -1 ? text.lastIndexOf('}') : -1;
     if (start === -1 || end === -1) return { accounts: [], properties: [] };
 
     const parsed = JSON.parse(text.slice(start, end + 1)) as {

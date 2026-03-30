@@ -11,7 +11,7 @@ const links = [
   { href: '/documents', label: 'Docs',    Icon: FileText },
   { href: '/finance',   label: 'Finance', Icon: DollarSign },
   { href: '/rentals',   label: 'Rentals', Icon: Building2 },
-  { href: '/scenarios', label: 'Taxes',   Icon: Calculator },
+  { href: '/taxes',     label: 'Taxes',   Icon: Calculator },
 ];
 
 export default function Nav() {

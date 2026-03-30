@@ -83,5 +83,10 @@ export async function POST(
   // Mark document as extracted
   await sql`UPDATE documents SET extracted_at = NOW() WHERE id = ${id}`.catch(() => {});
 
+  // Auto-sync tax returns from the newly saved accounts (fire-and-forget)
+  import('@/lib/tax-returns').then(({ syncTaxReturnsFromAccounts }) => {
+    syncTaxReturnsFromAccounts().catch(() => {});
+  }).catch(() => {});
+
   return Response.json({ saved: { accounts: savedAccounts, properties: savedProperties } });
 }

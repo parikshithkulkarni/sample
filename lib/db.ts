@@ -143,6 +143,19 @@ export async function runMigrations() {
       created_at    TIMESTAMPTZ DEFAULT now()
     )
   `;
+
+  // Tax returns — one row per (tax_year, country), JSONB for all fields
+  await sql`
+    CREATE TABLE IF NOT EXISTS tax_returns (
+      id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tax_year   INTEGER NOT NULL,
+      country    TEXT NOT NULL CHECK (country IN ('US', 'India')),
+      data       JSONB NOT NULL DEFAULT '{}',
+      updated_at TIMESTAMPTZ DEFAULT now(),
+      UNIQUE (tax_year, country)
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS tax_returns_year_idx ON tax_returns (tax_year DESC, country)`;
 }
 
 // ── Seed data ─────────────────────────────────────────────────────────────────

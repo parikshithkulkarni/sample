@@ -98,8 +98,10 @@ Return ONLY valid JSON:
     });
 
     const text = (msg.content[0] as { type: string; text: string }).text;
-    // Anchor on the known top-level key to avoid matching embedded JSON in document content
-    const start = text.indexOf('{"accounts"');
+    // Find the outermost JSON object (handles any key ordering from Claude)
+    const anchors = ['{"accounts"', '{"properties"', '{  "accounts"', '{  "properties"', '{ "accounts"', '{ "properties"']
+      .map(a => text.indexOf(a)).filter(i => i !== -1);
+    const start = anchors.length > 0 ? Math.min(...anchors) : text.indexOf('{');
     const end = start !== -1 ? text.lastIndexOf('}') : -1;
     if (start === -1 || end === -1) throw new Error('No JSON object found in response');
     const parsed = JSON.parse(text.slice(start, end + 1));
