@@ -24,16 +24,12 @@ function constantTimeEquals(a: string, b: string): boolean {
   return timingSafeEqual(aBuf, bBuf);
 }
 
-// Derive a secret from whatever the user has configured, in priority order.
-// If no explicit secret is set, generate a strong random one and warn.
+// Resolve the JWT secret. Must match middleware.ts (which runs in Edge and
+// can only read env vars directly — no Node.js crypto).
 let _generatedSecret: string | undefined;
 export function getSecret(): string {
   if (process.env.NEXTAUTH_SECRET) return process.env.NEXTAUTH_SECRET;
-  if (process.env.ADMIN_PASSWORD) {
-    // Derive a proper-length secret from the password using scrypt
-    const derived = scryptSync(process.env.ADMIN_PASSWORD, 'nextauth-secret-salt', 32).toString('hex');
-    return derived;
-  }
+  if (process.env.ADMIN_PASSWORD) return process.env.ADMIN_PASSWORD;
   // Last resort: generate an ephemeral secret (sessions won't survive restarts)
   if (!_generatedSecret) {
     _generatedSecret = randomBytes(32).toString('hex');
