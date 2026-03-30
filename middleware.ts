@@ -1,6 +1,6 @@
 import { withAuth } from 'next-auth/middleware';
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import type { NextRequestWithAuth } from 'next-auth/middleware';
 
 // Security headers applied to all responses
 const SECURITY_HEADERS: Record<string, string> = {
@@ -11,51 +11,28 @@ const SECURITY_HEADERS: Record<string, string> = {
   'X-DNS-Prefetch-Control': 'off',
 };
 
-function addSecurityHeaders(response: NextResponse) {
-  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
-    response.headers.set(key, value);
-  }
-  // HSTS only in production
-  if (process.env.NODE_ENV === 'production') {
-    response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-  }
-  return response;
-}
-
-// Read secret from env directly (Edge-compatible — no Node.js crypto).
-// getSecret() in lib/auth.ts uses scryptSync which is not available in Edge runtime.
-const secret =
-  process.env.NEXTAUTH_SECRET ??
-  process.env.ADMIN_PASSWORD ??
-  process.env.ANTHROPIC_API_KEY ??
-  '';
-
-const authMiddleware = withAuth({ secret });
-
-export default async function middleware(req: NextRequest) {
-  // Apply security headers to all responses
-  const response = NextResponse.next();
-  addSecurityHeaders(response);
-
-  // Auth middleware only applies to page routes (not API, static, etc.)
-  const { pathname } = req.nextUrl;
-  const isProtectedPage = !/^\/(?:api|setup|login|_next\/static|_next\/image|favicon\.ico)/.test(pathname);
-
-  if (isProtectedPage) {
-    const authResponse = await (authMiddleware as Function)(req, {} as any);
-    if (authResponse) {
-      for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
-        authResponse.headers.set(key, value);
-      }
-      return authResponse;
+export default withAuth(
+  function middleware(req: NextRequestWithAuth) {
+    const response = NextResponse.next();
+    for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+      response.headers.set(key, value);
     }
-  }
-
-  return response;
-}
+    if (process.env.NODE_ENV === 'production') {
+      response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    return response;
+  },
+  {
+    secret:
+      process.env.NEXTAUTH_SECRET ??
+      process.env.ADMIN_PASSWORD ??
+      process.env.ANTHROPIC_API_KEY ??
+      '',
+  },
+);
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!api|setup|login|_next/static|_next/image|favicon.ico).*)',
   ],
 };
