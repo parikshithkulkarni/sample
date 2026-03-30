@@ -198,16 +198,16 @@ export default function TaxReturnsPage() {
             <Loader2 size={28} className="animate-spin text-gray-300" />
           </div>
         ) : taxReturn ? (
-          country === 'US' ? (
+          taxReturn.country === 'US' ? (
             <TaxReturnUS
               taxYear={year}
-              data={taxReturn.data as UsData}
+              data={withDefaults(taxReturn.data, 'US') as UsData}
               onChange={handleChange}
             />
           ) : (
             <TaxReturnIndia
               taxYear={year}
-              data={taxReturn.data as IndiaData}
+              data={withDefaults(taxReturn.data, 'India') as IndiaData}
               onChange={handleChange}
             />
           )
