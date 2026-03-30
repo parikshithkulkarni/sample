@@ -29,12 +29,15 @@ interface RentalRecord {
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-const EXPENSE_KEYS = [
-  'property_tax', 'insurance', 'maintenance', 'repairs', 'hoa',
-  'management', 'utilities', 'landscaping', 'pest_control',
-  'cleaning', 'advertising', 'legal', 'accounting',
-  'capital_improvements', 'supplies', 'travel', 'other',
+const EXPENSE_GROUPS: { label: string; keys: string[] }[] = [
+  { label: 'Taxes & Insurance', keys: ['property_tax', 'insurance'] },
+  { label: 'Building & Maintenance', keys: ['maintenance', 'repairs', 'capital_improvements'] },
+  { label: 'Management & Services', keys: ['management', 'hoa', 'utilities', 'landscaping', 'pest_control', 'cleaning'] },
+  { label: 'Admin & Professional', keys: ['advertising', 'legal', 'accounting'] },
+  { label: 'Other', keys: ['supplies', 'travel', 'other'] },
 ];
+
+const EXPENSE_KEYS = EXPENSE_GROUPS.flatMap(g => g.keys);
 
 interface Props {
   propertyId: string;
@@ -270,12 +273,16 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
               <input type="number" value={form.mortgage_pmt} onChange={(e) => setForm({ ...form, mortgage_pmt: e.target.value })} placeholder="Mortgage ($)" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
               <input type="number" value={form.vacancy_days} onChange={(e) => setForm({ ...form, vacancy_days: e.target.value })} placeholder="Vacancy days" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
             </div>
-            <p className="text-xs text-gray-500 font-medium">Expenses</p>
-            <div className="grid grid-cols-2 gap-2">
-              {EXPENSE_KEYS.map((k) => (
-                <input key={k} type="number" value={String(form[k] ?? '')} onChange={(e) => setForm({ ...form, [k]: e.target.value })} placeholder={`${k.replace(/_/g, ' ')} ($)`} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
-              ))}
-            </div>
+            {EXPENSE_GROUPS.map((group) => (
+              <div key={group.label}>
+                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-1.5">{group.label}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {group.keys.map((k) => (
+                    <input key={k} type="number" value={String(form[k] ?? '')} onChange={(e) => setForm({ ...form, [k]: e.target.value })} placeholder={`${k.replace(/_/g, ' ')} ($)`} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
+                  ))}
+                </div>
+              </div>
+            ))}
             <button type="submit" className="w-full bg-sky-600 text-white rounded-xl py-2.5 text-sm font-medium">Save</button>
           </form>
         )}
@@ -302,18 +309,27 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
                   <tr key={r.id} className="border-t border-gray-50 dark:border-gray-800" onClick={() => setExpandedRow(isExpanded ? null : r.id)}>
                     <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300 cursor-pointer">
                       <div>{MONTHS[r.month - 1]}</div>
-                      {isExpanded && expEntries.length > 0 && (
-                        <div className="mt-1.5 space-y-0.5">
+                      {isExpanded && (expEntries.length > 0 || Number(r.mortgage_pmt) > 0) && (
+                        <div className="mt-1.5 space-y-1">
                           {Number(r.mortgage_pmt) > 0 && (
                             <div className="text-[10px] text-gray-400 flex justify-between pr-2">
                               <span>mortgage</span><span>{fmt(Number(r.mortgage_pmt))}</span>
                             </div>
                           )}
-                          {expEntries.map(([k, v]) => (
-                            <div key={k} className="text-[10px] text-gray-400 flex justify-between pr-2">
-                              <span>{k.replace(/_/g, ' ')}</span><span>{fmt(v)}</span>
-                            </div>
-                          ))}
+                          {EXPENSE_GROUPS.map((group) => {
+                            const items = expEntries.filter(([k]) => group.keys.includes(k));
+                            if (items.length === 0) return null;
+                            return (
+                              <div key={group.label}>
+                                <div className="text-[10px] text-gray-500 dark:text-gray-400 font-medium mt-0.5">{group.label}</div>
+                                {items.map(([k, v]) => (
+                                  <div key={k} className="text-[10px] text-gray-400 flex justify-between pr-2 pl-2">
+                                    <span>{k.replace(/_/g, ' ')}</span><span>{fmt(v)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </td>
