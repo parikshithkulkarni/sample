@@ -29,7 +29,7 @@ export function normalizeAddress(addr: string): string {
     .replace(/[,\.#]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-function addressesMatch(a: string, b: string): boolean {
+export function addressesMatch(a: string, b: string): boolean {
   const na = normalizeAddress(a);
   const nb = normalizeAddress(b);
   return na === nb || na.startsWith(nb + ' ') || nb.startsWith(na + ' ');
@@ -46,7 +46,7 @@ export function normalizeAccountName(name: string): string {
     .trim();
 }
 
-function accountNamesMatch(a: string, b: string): boolean {
+export function accountNamesMatch(a: string, b: string): boolean {
   const na = normalizeAccountName(a);
   const nb = normalizeAccountName(b);
   return na === nb;

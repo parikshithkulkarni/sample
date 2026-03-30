@@ -76,7 +76,10 @@ describe('POST /api/rentals', () => {
   beforeEach(() => {
     mockSql.mockReset();
     mockAuth.mockResolvedValue({ user: { name: 'Test' } } as never);
-    mockSql.mockResolvedValue([MOCK_PROPERTY] as never);
+    // First call: dedup check (SELECT all properties) returns empty, second call: INSERT returns property
+    mockSql
+      .mockResolvedValueOnce([] as never) // dedup SELECT
+      .mockResolvedValueOnce([MOCK_PROPERTY] as never); // INSERT RETURNING
   });
 
   it('returns 401 when unauthenticated', async () => {

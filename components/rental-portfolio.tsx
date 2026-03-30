@@ -130,18 +130,9 @@ export default function RentalPortfolio() {
   async function mergeDuplicates() {
     setMerging(true);
     try {
-      for (const group of dupGroups) {
-        // Keep the oldest (first created) and merge the rest into it
-        const keepId = group[0].id;
-        const deleteIds = group.slice(1).map(p => p.id);
-        await fetch('/api/rentals/merge', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ keepId, deleteIds }),
-        });
-      }
-      const updated = await fetch('/api/rentals').then(r => r.json()) as Property[];
-      setProperties(updated);
+      await fetch('/api/rentals/dedup', { method: 'POST' });
+      const res = await fetch('/api/rentals').then(r => r.json());
+      setProperties(Array.isArray(res) ? res : res?.data ?? []);
     } finally {
       setMerging(false);
     }

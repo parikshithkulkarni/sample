@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
 import { accountSchema, paginationSchema, parseBody, parseQuery } from '@/lib/validators';
+import { normalizeAccountName } from '@/lib/extract';
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
@@ -35,6 +36,24 @@ export async function POST(req: Request) {
   const parsed = await parseBody(req, accountSchema);
   if (parsed instanceof Response) return parsed;
   const { name, type, category, balance, currency, notes } = parsed;
+
+  // Check for existing account with similar name (normalized match)
+  const existing = await sql`SELECT id, name, balance FROM accounts` as { id: string; name: string; balance: number }[];
+  const normalizedNew = normalizeAccountName(name);
+  const match = existing.find(a => normalizeAccountName(a.name) === normalizedNew);
+
+  if (match) {
+    // Update existing account instead of creating duplicate
+    const [updated] = await sql`
+      UPDATE accounts SET balance = ${balance}, type = ${type}, category = ${category},
+        currency = ${currency}, notes = ${notes ?? null}, updated_at = NOW()
+      WHERE id = ${match.id}
+      RETURNING *
+    `;
+    const { takeNetWorthSnapshot } = await import('@/lib/snapshots');
+    takeNetWorthSnapshot().catch(() => {});
+    return Response.json(updated);
+  }
 
   const [row] = await sql`
     INSERT INTO accounts (name, type, category, balance, currency, notes)

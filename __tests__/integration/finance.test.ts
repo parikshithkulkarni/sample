@@ -84,7 +84,10 @@ describe('POST /api/finance', () => {
   beforeEach(() => {
     mockSql.mockReset();
     mockAuth.mockResolvedValue({ user: { name: 'Test' } } as never);
-    mockSql.mockResolvedValue([MOCK_ACCOUNT] as never);
+    // First call: dedup check (SELECT all accounts) returns empty, second call: INSERT returns account
+    mockSql
+      .mockResolvedValueOnce([] as never) // dedup SELECT
+      .mockResolvedValueOnce([MOCK_ACCOUNT] as never); // INSERT RETURNING
   });
 
   it('returns 401 when unauthenticated', async () => {

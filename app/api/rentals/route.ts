@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
 import { propertySchema, paginationSchema, parseBody, parseQuery } from '@/lib/validators';
+import { normalizeAddress } from '@/lib/extract';
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
@@ -35,6 +36,30 @@ export async function POST(req: Request) {
   const parsed = await parseBody(req, propertySchema);
   if (parsed instanceof Response) return parsed;
   const { address, purchase_price, purchase_date, market_value, mortgage_balance, notes } = parsed;
+
+  // Check for existing property with similar address (normalized match)
+  const existing = await sql`SELECT id, address FROM properties` as { id: string; address: string }[];
+  const normalizedNew = normalizeAddress(address);
+  const match = existing.find(p => {
+    const np = normalizeAddress(p.address);
+    return np === normalizedNew || np.startsWith(normalizedNew + ' ') || normalizedNew.startsWith(np + ' ');
+  });
+
+  if (match) {
+    // Update existing property instead of creating duplicate
+    const [updated] = await sql`
+      UPDATE properties SET
+        address          = COALESCE(NULLIF(${address}, ''), address),
+        purchase_price   = COALESCE(${purchase_price ?? null}, purchase_price),
+        purchase_date    = COALESCE(${purchase_date ?? null}, purchase_date),
+        market_value     = COALESCE(${market_value ?? null}, market_value),
+        mortgage_balance = COALESCE(${mortgage_balance ?? null}, mortgage_balance),
+        notes            = COALESCE(${notes ?? null}, notes)
+      WHERE id = ${match.id}
+      RETURNING *
+    `;
+    return Response.json(updated);
+  }
 
   const [row] = await sql`
     INSERT INTO properties (address, purchase_price, purchase_date, market_value, mortgage_balance, notes)

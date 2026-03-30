@@ -78,18 +78,12 @@ export default function FinanceOverview() {
   async function mergeDuplicates() {
     setMerging(true);
     try {
-      for (const group of dupGroups) {
-        // Keep the one with the highest balance; sum all into it
-        const keepId = group.reduce((best, a) => Number(a.balance) > Number(best.balance) ? a : best).id;
-        const deleteIds = group.filter(a => a.id !== keepId).map(a => a.id);
-        await fetch('/api/finance/merge', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ keepId, deleteIds }),
-        });
-      }
-      const updated = await fetch('/api/finance').then(r => r.json()) as Account[];
-      setAccounts(updated);
+      await fetch('/api/finance/dedup', { method: 'POST' });
+      const res = await fetch('/api/finance').then(r => r.json());
+      setAccounts(Array.isArray(res) ? res : res?.data ?? []);
+      addToast('Duplicates merged', 'success');
+    } catch {
+      addToast('Failed to merge duplicates', 'error');
     } finally {
       setMerging(false);
     }
