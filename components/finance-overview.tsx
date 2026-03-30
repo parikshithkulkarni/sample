@@ -88,8 +88,8 @@ export default function FinanceOverview() {
           body: JSON.stringify({ keepId, deleteIds }),
         });
       }
-      const updated = await fetch('/api/finance').then(r => r.json()) as Account[];
-      setAccounts(updated);
+      const res = await fetch('/api/finance').then(r => r.json());
+      setAccounts(Array.isArray(res) ? res : res?.data ?? []);
     } finally {
       setMerging(false);
     }

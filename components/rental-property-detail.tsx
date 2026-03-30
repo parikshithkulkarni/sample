@@ -29,7 +29,12 @@ interface RentalRecord {
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-const EXPENSE_KEYS = ['property_tax','insurance','maintenance','hoa','management','repairs','other'];
+const EXPENSE_KEYS = [
+  'property_tax', 'insurance', 'maintenance', 'repairs', 'hoa',
+  'management', 'utilities', 'landscaping', 'pest_control',
+  'cleaning', 'advertising', 'legal', 'accounting',
+  'capital_improvements', 'supplies', 'travel', 'other',
+];
 
 interface Props {
   propertyId: string;
@@ -41,15 +46,16 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
   const [records, setRecords] = useState<RentalRecord[]>([]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [addingRecord, setAddingRecord] = useState(false);
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ address: '', purchase_price: '', purchase_date: '', market_value: '', mortgage_balance: '', notes: '' });
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<Record<string, string | number>>({
     month: new Date().getMonth() + 1,
     rent_collected: '',
     vacancy_days: '0',
     mortgage_pmt: '',
     notes: '',
-    property_tax: '', insurance: '', maintenance: '', hoa: '', management: '', repairs: '', other: '',
+    ...Object.fromEntries(EXPENSE_KEYS.map(k => [k, ''])),
   });
 
   useEffect(() => {
@@ -66,7 +72,7 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
     e.preventDefault();
     const expenses: Record<string, number> = {};
     EXPENSE_KEYS.forEach((k) => {
-      const v = parseFloat(String((form as Record<string, unknown>)[k] ?? '0'));
+      const v = parseFloat(String(form[k] ?? '0'));
       if (v > 0) expenses[k] = v;
     });
 
@@ -75,12 +81,12 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         year: selectedYear,
-        month: form.month,
-        rent_collected: parseFloat(form.rent_collected) || 0,
-        vacancy_days: parseInt(form.vacancy_days) || 0,
-        mortgage_pmt: parseFloat(form.mortgage_pmt) || 0,
+        month: Number(form.month),
+        rent_collected: parseFloat(String(form.rent_collected)) || 0,
+        vacancy_days: parseInt(String(form.vacancy_days)) || 0,
+        mortgage_pmt: parseFloat(String(form.mortgage_pmt)) || 0,
         expenses,
-        notes: form.notes || undefined,
+        notes: String(form.notes || '') || undefined,
       }),
     });
 
@@ -267,7 +273,7 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
             <p className="text-xs text-gray-500 font-medium">Expenses</p>
             <div className="grid grid-cols-2 gap-2">
               {EXPENSE_KEYS.map((k) => (
-                <input key={k} type="number" value={String((form as Record<string, unknown>)[k] ?? '')} onChange={(e) => setForm({ ...form, [k]: e.target.value })} placeholder={`${k.replace('_', ' ')} ($)`} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
+                <input key={k} type="number" value={String(form[k] ?? '')} onChange={(e) => setForm({ ...form, [k]: e.target.value })} placeholder={`${k.replace(/_/g, ' ')} ($)`} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
               ))}
             </div>
             <button type="submit" className="w-full bg-sky-600 text-white rounded-xl py-2.5 text-sm font-medium">Save</button>
@@ -288,14 +294,32 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
             </thead>
             <tbody>
               {records.map((r) => {
-                const exp = Object.values(r.expenses as Record<string, number>).reduce((a, b) => a + b, 0);
+                const expEntries = Object.entries(r.expenses as Record<string, number>).filter(([, v]) => v > 0);
+                const exp = expEntries.reduce((a, [, b]) => a + b, 0);
                 const cf = Number(r.rent_collected) - exp - Number(r.mortgage_pmt);
+                const isExpanded = expandedRow === r.id;
                 return (
-                  <tr key={r.id} className="border-t border-gray-50 dark:border-gray-800">
-                    <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300">{MONTHS[r.month - 1]}</td>
-                    <td className="px-3 py-2.5 text-right text-gray-700 dark:text-gray-300">{fmt(Number(r.rent_collected))}</td>
-                    <td className="px-3 py-2.5 text-right text-gray-500">{fmt(exp + Number(r.mortgage_pmt))}</td>
-                    <td className={`px-3 py-2.5 text-right font-medium ${cf >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{fmt(cf)}</td>
+                  <tr key={r.id} className="border-t border-gray-50 dark:border-gray-800" onClick={() => setExpandedRow(isExpanded ? null : r.id)}>
+                    <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300 cursor-pointer">
+                      <div>{MONTHS[r.month - 1]}</div>
+                      {isExpanded && expEntries.length > 0 && (
+                        <div className="mt-1.5 space-y-0.5">
+                          {Number(r.mortgage_pmt) > 0 && (
+                            <div className="text-[10px] text-gray-400 flex justify-between pr-2">
+                              <span>mortgage</span><span>{fmt(Number(r.mortgage_pmt))}</span>
+                            </div>
+                          )}
+                          {expEntries.map(([k, v]) => (
+                            <div key={k} className="text-[10px] text-gray-400 flex justify-between pr-2">
+                              <span>{k.replace(/_/g, ' ')}</span><span>{fmt(v)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-gray-700 dark:text-gray-300 align-top">{fmt(Number(r.rent_collected))}</td>
+                    <td className="px-3 py-2.5 text-right text-gray-500 align-top">{fmt(exp + Number(r.mortgage_pmt))}</td>
+                    <td className={`px-3 py-2.5 text-right font-medium align-top ${cf >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{fmt(cf)}</td>
                   </tr>
                 );
               })}

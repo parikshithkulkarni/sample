@@ -140,8 +140,8 @@ export default function RentalPortfolio() {
           body: JSON.stringify({ keepId, deleteIds }),
         });
       }
-      const updated = await fetch('/api/rentals').then(r => r.json()) as Property[];
-      setProperties(updated);
+      const res = await fetch('/api/rentals').then(r => r.json());
+      setProperties(Array.isArray(res) ? res : res?.data ?? []);
     } finally {
       setMerging(false);
     }
