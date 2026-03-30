@@ -102,7 +102,7 @@ export default function ScenarioForm() {
             key={t.key}
             onClick={() => switchTab(t.key)}
             className={`shrink-0 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
-              activeTab === t.key ? 'bg-sky-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              activeTab === t.key ? 'bg-sky-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
             }`}
           >
             {t.label}
@@ -112,15 +112,15 @@ export default function ScenarioForm() {
 
       {/* Form */}
       {!submitted && (
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
+        <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3 dark:bg-gray-900 dark:border-gray-800">
           {FIELDS[activeTab].map((f) => (
             <div key={f.key}>
-              <label className="text-xs text-gray-500 mb-1 block">{f.label}</label>
+              <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">{f.label}</label>
               {f.type === 'select' ? (
                 <select
                   value={formValues[f.key] ?? ''}
                   onChange={(e) => setFormValues({ ...formValues, [f.key]: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                 >
                   <option value="">Select...</option>
                   {f.options?.map((o) => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
@@ -132,7 +132,7 @@ export default function ScenarioForm() {
                   value={formValues[f.key] ?? ''}
                   onChange={(e) => setFormValues({ ...formValues, [f.key]: e.target.value })}
                   placeholder={f.placeholder}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                 />
               )}
             </div>
@@ -147,20 +147,20 @@ export default function ScenarioForm() {
       {submitted && messages.length > 0 && (
         <div className="space-y-3">
           {messages.filter((m) => m.role === 'assistant').map((m) => (
-            <div key={m.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+            <div key={m.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 text-sm text-gray-800 leading-relaxed whitespace-pre-wrap dark:bg-gray-900 dark:border-gray-800 dark:text-gray-200">
               {m.content}
             </div>
           ))}
           {isLoading && (
-            <div className="bg-gray-100 rounded-2xl px-4 py-3 flex gap-1">
-              <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms]" />
-              <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]" />
-              <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]" />
+            <div className="bg-gray-100 rounded-2xl px-4 py-3 flex gap-1 dark:bg-gray-800">
+              <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms] dark:bg-gray-500" />
+              <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms] dark:bg-gray-500" />
+              <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms] dark:bg-gray-500" />
             </div>
           )}
           <button
             onClick={() => { setSubmitted(false); setMessages([]); setFormValues({}); }}
-            className="w-full border border-gray-200 rounded-xl py-3 text-sm text-gray-600"
+            className="w-full border border-gray-200 rounded-xl py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-400"
           >
             Run New Scenario
           </button>

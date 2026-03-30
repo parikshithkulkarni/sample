@@ -85,19 +85,19 @@ export default function FinanceBreakdownChart() {
   const hoveredEntry = hovered ? entries.find(([cat]) => cat === hovered) : null;
 
   return (
-    <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+    <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-700">Portfolio Breakdown</h3>
-        <div className="flex rounded-lg overflow-hidden border border-gray-200 text-xs">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Portfolio Breakdown</h3>
+        <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 text-xs">
           <button
             onClick={() => setTab('assets')}
-            className={`px-3 py-1 ${tab === 'assets' ? 'bg-sky-500 text-white' : 'text-gray-500'}`}
+            className={`px-3 py-1 ${tab === 'assets' ? 'bg-sky-500 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}
           >
             Assets
           </button>
           <button
             onClick={() => setTab('liabilities')}
-            className={`px-3 py-1 ${tab === 'liabilities' ? 'bg-sky-500 text-white' : 'text-gray-500'}`}
+            className={`px-3 py-1 ${tab === 'liabilities' ? 'bg-sky-500 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}
           >
             Liabilities
           </button>
@@ -123,7 +123,7 @@ export default function FinanceBreakdownChart() {
             <text x={cx} y={cy - 8} textAnchor="middle" className="text-xs" fill="#6b7280" fontSize={10}>
               {hoveredEntry ? labelFor(hoveredEntry[0]) : 'Total'}
             </text>
-            <text x={cx} y={cy + 8} textAnchor="middle" fill="#111827" fontSize={12} fontWeight="600">
+            <text x={cx} y={cy + 8} textAnchor="middle" fill="currentColor" className="text-gray-900 dark:text-gray-100" fontSize={12} fontWeight="600">
               {hoveredEntry ? fmt(hoveredEntry[1]) : fmt(total)}
             </text>
             {hoveredEntry && (
@@ -147,8 +147,8 @@ export default function FinanceBreakdownChart() {
                 className="w-2.5 h-2.5 rounded-full shrink-0 transition-opacity"
                 style={{ backgroundColor: s.color, opacity: hovered && hovered !== s.cat ? 0.3 : 1 }}
               />
-              <span className="text-xs text-gray-600 truncate flex-1">{labelFor(s.cat)}</span>
-              <span className="text-xs font-medium text-gray-800 shrink-0">{s.pct.toFixed(1)}%</span>
+              <span className="text-xs text-gray-600 dark:text-gray-400 truncate flex-1">{labelFor(s.cat)}</span>
+              <span className="text-xs font-medium text-gray-800 dark:text-gray-200 shrink-0">{s.pct.toFixed(1)}%</span>
             </div>
           ))}
         </div>

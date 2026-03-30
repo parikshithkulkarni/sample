@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Building2, TrendingUp, Trash2, GitMerge } from 'lucide-react';
 import { fmt } from '@/lib/utils';
+import { SkeletonCard } from '@/components/skeleton';
 
 function normalizeAddr(addr: string): string {
   return addr
@@ -55,6 +56,7 @@ interface PropertyStats extends Property {
 export default function RentalPortfolio() {
   const router = useRouter();
   const [properties, setProperties] = useState<Property[]>([]);
+  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<PropertyStats[]>([]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [adding, setAdding] = useState(false);
@@ -84,7 +86,7 @@ export default function RentalPortfolio() {
   })();
 
   useEffect(() => {
-    fetch('/api/rentals').then((r) => r.json()).then(setProperties);
+    fetch('/api/rentals').then((r) => r.json()).then((data) => { setProperties(data); setLoading(false); });
   }, []);
 
   useEffect(() => {
@@ -178,7 +180,7 @@ export default function RentalPortfolio() {
         <select
           value={selectedYear}
           onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-          className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+          className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
         >
           {years.map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
@@ -189,7 +191,7 @@ export default function RentalPortfolio() {
 
       {/* Duplicate warning */}
       {dupGroups.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center justify-between gap-3">
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center justify-between gap-3 dark:bg-amber-950/30 dark:border-amber-800">
           <div>
             <p className="text-sm font-medium text-amber-800">Duplicate properties detected</p>
             <p className="text-xs text-amber-600 mt-0.5">
@@ -209,10 +211,10 @@ export default function RentalPortfolio() {
 
       {/* Portfolio totals */}
       {stats.length > 0 && (
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 grid grid-cols-3 gap-3">
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 grid grid-cols-3 gap-3 dark:bg-gray-900 dark:border-gray-800">
           <div>
             <p className="text-xs text-gray-400">Annual Rent</p>
-            <p className="text-base font-bold text-gray-800">{fmt(totalRent)}</p>
+            <p className="text-base font-bold text-gray-800 dark:text-gray-200">{fmt(totalRent)}</p>
           </div>
           <div>
             <p className="text-xs text-gray-400">NOI</p>
@@ -220,15 +222,15 @@ export default function RentalPortfolio() {
           </div>
           <div>
             <p className="text-xs text-gray-400">Total Equity</p>
-            <p className="text-base font-bold text-gray-800">{fmt(totalEquity)}</p>
+            <p className="text-base font-bold text-gray-800 dark:text-gray-200">{fmt(totalEquity)}</p>
           </div>
         </div>
       )}
 
       {/* NOI by property bar chart */}
       {stats.length > 1 && (
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">NOI by Property ({selectedYear})</h3>
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 dark:bg-gray-900 dark:border-gray-800">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">NOI by Property ({selectedYear})</h3>
           {(() => {
             const maxAbs = Math.max(...stats.map((p) => Math.abs(p.noi)), 1);
             return (
@@ -239,7 +241,7 @@ export default function RentalPortfolio() {
                   const shortAddr = p.address.split(',')[0];
                   return (
                     <div key={p.id} className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500 w-24 truncate shrink-0">{shortAddr}</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 w-24 truncate shrink-0">{shortAddr}</span>
                       <div className="flex-1 flex items-center">
                         <div
                           className={`h-5 rounded-r-md transition-all ${isPos ? 'bg-emerald-400' : 'bg-red-400'}`}
@@ -270,32 +272,41 @@ export default function RentalPortfolio() {
 
       {/* Add property form */}
       {adding && (
-        <form onSubmit={addProperty} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
-          <input required value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Property address" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+        <form onSubmit={addProperty} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3 dark:bg-gray-900 dark:border-gray-800">
+          <input required value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Property address" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
           <div className="grid grid-cols-2 gap-2">
-            <input type="number" value={form.purchase_price} onChange={(e) => setForm({ ...form, purchase_price: e.target.value })} placeholder="Purchase price" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
-            <input type="date" value={form.purchase_date} onChange={(e) => setForm({ ...form, purchase_date: e.target.value })} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+            <input type="number" value={form.purchase_price} onChange={(e) => setForm({ ...form, purchase_price: e.target.value })} placeholder="Purchase price" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
+            <input type="date" value={form.purchase_date} onChange={(e) => setForm({ ...form, purchase_date: e.target.value })} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <input type="number" value={form.market_value} onChange={(e) => setForm({ ...form, market_value: e.target.value })} placeholder="Current market value" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
-            <input type="number" value={form.mortgage_balance} onChange={(e) => setForm({ ...form, mortgage_balance: e.target.value })} placeholder="Mortgage balance" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+            <input type="number" value={form.market_value} onChange={(e) => setForm({ ...form, market_value: e.target.value })} placeholder="Current market value" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
+            <input type="number" value={form.mortgage_balance} onChange={(e) => setForm({ ...form, mortgage_balance: e.target.value })} placeholder="Mortgage balance" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
           </div>
           <button type="submit" className="w-full bg-sky-600 text-white rounded-xl py-2.5 text-sm font-medium">Save Property</button>
         </form>
       )}
 
+      {/* Skeleton loading state */}
+      {loading && (
+        <div className="space-y-4">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      )}
+
       {/* Property cards */}
-      {stats.map((p) => (
+      {!loading && stats.map((p) => (
         <div
           key={p.id}
           onClick={() => router.push(`/rentals/${p.id}`)}
-          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 cursor-pointer active:scale-[0.98] transition-transform"
+          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 cursor-pointer active:scale-[0.98] transition-transform dark:bg-gray-900 dark:border-gray-800"
         >
           <div className="flex items-start gap-3">
             <Building2 size={20} className="text-sky-500 mt-0.5 shrink-0" />
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-1">
-                <p className="text-sm font-medium text-gray-800 truncate">{p.address}</p>
+                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{p.address}</p>
                 <button
                   onClick={(e) => deleteProperty(e, p.id)}
                   disabled={deleting === p.id}
@@ -311,7 +322,7 @@ export default function RentalPortfolio() {
                 {p.market_value ? (
                   <div>
                     <p className="text-xs text-gray-400">Market Value</p>
-                    <p className="text-sm font-semibold text-gray-800">{fmt(Number(p.market_value))}</p>
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{fmt(Number(p.market_value))}</p>
                   </div>
                 ) : null}
                 {p.mortgage_balance ? (
@@ -330,7 +341,7 @@ export default function RentalPortfolio() {
                 ) : null}
                 <div>
                   <p className="text-xs text-gray-400">{selectedYear} Rent</p>
-                  <p className="text-sm font-semibold text-gray-800">{p.annualRent ? fmt(p.annualRent) : '—'}</p>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{p.annualRent ? fmt(p.annualRent) : '—'}</p>
                 </div>
                 {p.cashflow !== 0 && (
                   <div>
@@ -341,7 +352,7 @@ export default function RentalPortfolio() {
                 {p.capRate !== null && p.capRate !== 0 && (
                   <div>
                     <p className="text-xs text-gray-400">Cap Rate</p>
-                    <p className="text-sm font-semibold text-gray-800">{p.capRate.toFixed(1)}%</p>
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{p.capRate.toFixed(1)}%</p>
                   </div>
                 )}
               </div>
@@ -350,7 +361,7 @@ export default function RentalPortfolio() {
         </div>
       ))}
 
-      {properties.length === 0 && (
+      {!loading && properties.length === 0 && (
         <div className="text-center py-16 text-gray-400">
           <Building2 size={40} className="mx-auto mb-3 opacity-30" />
           <p className="text-sm">No properties yet. Add one above.</p>

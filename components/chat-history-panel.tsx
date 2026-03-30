@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { MessageSquare, Trash2, Plus, X, Clock } from 'lucide-react';
+import { SkeletonList } from '@/components/skeleton';
 
 interface ChatSession {
   id: string;
@@ -50,12 +51,12 @@ export default function ChatHistoryPanel({ currentSessionId, onSelectSession, on
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-white">
+    <div className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-gray-950">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100">
+      <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 dark:border-gray-800">
         <div className="flex items-center gap-2">
           <Clock size={16} className="text-gray-400" />
-          <h2 className="text-base font-semibold text-gray-900">Chat History</h2>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Chat History</h2>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -73,7 +74,7 @@ export default function ChatHistoryPanel({ currentSessionId, onSelectSession, on
       {/* Session list */}
       <div className="flex-1 overflow-y-auto">
         {loading && (
-          <p className="text-center text-gray-400 text-sm py-10 animate-pulse">Loading…</p>
+          <div className="px-4 py-4"><SkeletonList count={5} /></div>
         )}
         {!loading && sessions.length === 0 && (
           <div className="text-center text-gray-400 text-sm py-16">
@@ -86,12 +87,12 @@ export default function ChatHistoryPanel({ currentSessionId, onSelectSession, on
           <button
             key={s.id}
             onClick={() => { onSelectSession(s.id); onClose(); }}
-            className={`w-full flex items-start justify-between px-4 py-3.5 border-b border-gray-50 text-left hover:bg-gray-50 transition-colors ${
-              s.id === currentSessionId ? 'bg-sky-50 border-l-2 border-l-sky-500' : ''
+            className={`w-full flex items-start justify-between px-4 py-3.5 border-b border-gray-50 dark:border-gray-800 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${
+              s.id === currentSessionId ? 'bg-sky-50 dark:bg-sky-950/30 border-l-2 border-l-sky-500' : ''
             }`}
           >
             <div className="flex-1 min-w-0 mr-2">
-              <p className="text-sm font-medium text-gray-800 truncate">{s.title}</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{s.title}</p>
               <p className="text-xs text-gray-400 mt-0.5">
                 {s.message_count} message{s.message_count !== 1 ? 's' : ''} · {timeAgo(s.updated_at)}
               </p>
