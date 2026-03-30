@@ -181,19 +181,13 @@ export default function FinanceOverview() {
   })();
 
   useEffect(() => {
-    fetch('/api/finance')
-      .then((r) => r.json())
-      .then(async (d) => {
-        const accts = Array.isArray(d) ? d : d?.data ?? [];
-        setAccounts(accts);
-        // Auto-dedup if duplicates detected on load
-        if (hasDuplicates(accts)) {
-          await fetch('/api/finance/dedup', { method: 'POST' });
-          const fresh = await fetch('/api/finance').then(r => r.json());
-          setAccounts(Array.isArray(fresh) ? fresh : fresh?.data ?? []);
-        }
-      })
-      .finally(() => setLoading(false));
+    async function load() {
+      // Run cleanup on load: removes income/tax records, deduplicates, syncs to tax page
+      await fetch('/api/finance/cleanup', { method: 'POST' }).catch(() => {});
+      const res = await fetch('/api/finance').then(r => r.json());
+      setAccounts(Array.isArray(res) ? res : res?.data ?? []);
+    }
+    load().finally(() => setLoading(false));
   }, []);
 
   // Exclude income/tax records from net worth — they aren't real account balances

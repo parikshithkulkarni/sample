@@ -194,6 +194,12 @@ export const extractionOutputSchema = z.object({
     expenses: z.record(z.string(), z.number()).default({}),
     notes: z.string().optional(),
   })).default([]),
+  tax_data: z.array(z.object({
+    tax_year: z.number().int(),
+    field: z.string(),
+    amount: z.number(),
+    notes: z.string().optional(),
+  })).default([]),
 });
 
 // ── Chat ─────────────────────────────────────────────────────────────────────

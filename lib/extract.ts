@@ -150,8 +150,41 @@ Name: "${docName}"
 ${docText}
 ---
 
-Extract every financial item. Be aggressive — include partial data (use null for unknown fields).
-Skip anything already in the system above.
+## Tax Data (W-2, 1099, K-1, pay stubs, etc.)
+If the document contains income, tax, or withholding data, extract it into the tax_data section.
+Do NOT create "accounts" for income — put it here instead.
+Each tax_data entry has:
+- tax_year: integer (e.g. 2024)
+- field: dotted path to the tax return field (see mapping below)
+- amount: number
+- notes: optional string for context
+
+### US tax field mappings:
+- W-2 Box 1 wages → field: "us.income.wages"
+- W-2 Box 2 federal withheld → field: "us.payments.federal_withheld"
+- W-2 Box 17 state withheld → field: "us.payments.state_withheld"
+- W-2 Box 12 Code D (401k contribution) → field: "us.adjustments.k401_contributions"
+- W-2 Box 12 Code W (HSA contribution) → field: "us.adjustments.hsa_deduction"
+- 1099-INT interest → field: "us.income.interest"
+- 1099-DIV ordinary dividends → field: "us.income.ordinary_dividends"
+- 1099-DIV qualified dividends → field: "us.income.qualified_dividends"
+- 1099-B short-term gains → field: "us.income.st_capital_gains"
+- 1099-B long-term gains → field: "us.income.lt_capital_gains"
+- 1099-R distributions → field: "us.income.ira_distributions"
+- 1099-NEC/MISC self-employment → field: "us.income.business_income"
+- K-1 business/partnership income → field: "us.income.business_income"
+- Schedule E rental income → field: "us.income.rental_income"
+- Estimated tax payments → field: "us.payments.estimated_payments"
+
+### India tax field mappings:
+- Salary income → field: "india.income.salary"
+- TDS on salary → field: "india.taxes_paid.tds_salary"
+- Interest income → field: "india.income.interest_income"
+- STCG equity → field: "india.income.st_equity_gains"
+- LTCG equity → field: "india.income.lt_equity_gains"
+
+Extract EVERYTHING. Be aggressive — include partial data (use null for unknown fields).
+Skip accounts/properties already in the system above.
 
 Return ONLY valid JSON (no markdown fences, no explanation).
 ALL numeric fields must be plain JSON numbers — integer or decimal, no quotes, no $ signs, no commas.
@@ -166,6 +199,10 @@ CORRECT: 450000   WRONG: "450,000" or "$450k"
   ],
   "rental_records": [
     { "address": "123 Main St", "year": 2024, "month": 1, "rent_collected": 2500, "mortgage_pmt": 1800, "vacancy_days": 0, "expenses": { "property_tax": 300, "insurance": 150, "management": 250 }, "notes": "" }
+  ],
+  "tax_data": [
+    { "tax_year": 2024, "field": "us.income.wages", "amount": 180000, "notes": "W-2 Box 1 from Google" },
+    { "tax_year": 2024, "field": "us.payments.federal_withheld", "amount": 35000, "notes": "W-2 Box 2" }
   ]
 }`;
 }
@@ -283,8 +320,46 @@ export async function extractAndInsert(documentId: string): Promise<{ accounts: 
       insertedRecords.push(`${rec.address} ${rec.year}/${rec.month}`);
     }
 
-    return { accounts: insertedAccounts, properties: insertedProperties, rentalRecords: insertedRecords };
+    // ── Tax data (income, withholdings, etc.) → directly to tax_returns ──
+    const insertedTaxData: string[] = [];
+    const { US_DEFAULT, INDIA_DEFAULT } = await import('@/lib/tax-data');
+    for (const td of parsed.tax_data ?? []) {
+      if (!td.field || !td.tax_year || !td.amount) continue;
+      const isUS = td.field.startsWith('us.');
+      const isIndia = td.field.startsWith('india.');
+      if (!isUS && !isIndia) continue;
+
+      const country = isUS ? 'US' : 'India';
+      const taxPath = td.field.slice(isUS ? 3 : 6); // strip "us." or "india."
+      const defaults = country === 'US' ? US_DEFAULT : INDIA_DEFAULT;
+
+      // Load or create tax return
+      const existing = await sql`SELECT id, data FROM tax_returns WHERE tax_year = ${td.tax_year} AND country = ${country}` as { id: string; data: Record<string, unknown> }[];
+      const data = existing.length > 0
+        ? { ...defaults, ...existing[0].data } as Record<string, unknown>
+        : { ...defaults } as Record<string, unknown>;
+
+      // Set the field value (additive for income fields)
+      const keys = taxPath.split('.');
+      let cur = data;
+      for (let i = 0; i < keys.length - 1; i++) {
+        if (typeof cur[keys[i]] !== 'object' || cur[keys[i]] === null) cur[keys[i]] = {};
+        cur = cur[keys[i]] as Record<string, unknown>;
+      }
+      const lastKey = keys[keys.length - 1];
+      cur[lastKey] = (Number(cur[lastKey]) || 0) + td.amount;
+
+      const dataJson = JSON.stringify(data);
+      if (existing.length > 0) {
+        await sql`UPDATE tax_returns SET data = ${dataJson}::jsonb, updated_at = NOW() WHERE id = ${existing[0].id}`;
+      } else {
+        await sql`INSERT INTO tax_returns (tax_year, country, data) VALUES (${td.tax_year}, ${country}, ${dataJson}::jsonb)`;
+      }
+      insertedTaxData.push(`${country} ${td.tax_year}: ${taxPath} = ${td.amount}`);
+    }
+
+    return { accounts: insertedAccounts, properties: insertedProperties, rentalRecords: insertedRecords, taxData: insertedTaxData };
   } catch {
-    return { accounts: [], properties: [], rentalRecords: [] };
+    return { accounts: [], properties: [], rentalRecords: [], taxData: [] };
   }
 }
