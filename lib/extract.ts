@@ -68,19 +68,36 @@ export function buildExtractionPrompt(
   existingAccountsList: string,
   existingPropertiesList: string,
 ): string {
-  return `You are filling in a personal finance dashboard from a document. Extract EVERYTHING financially useful — be aggressive.
+  return `You are filling in a personal finance dashboard from a document. Extract financial data carefully.
 
 ## Finance page — Accounts
+Only create accounts for REAL financial accounts and holdings — things that hold a balance over time.
+
 Each account has:
-- name: descriptive string, e.g. "Chase Checking", "Fidelity 401k", "2024 Federal Tax Withheld"
+- name: descriptive string, e.g. "Chase Checking", "Fidelity 401k", "Apple RSU"
 - type: exactly "asset" or "liability"
-- category: descriptive snake_case string. Examples:
-    Assets: 401k, roth_ira, brokerage, rsu, espp, nso_options, iso_options, real_estate, savings, checking, money_market, cd, treasury, bond, crypto, hsa, 529_plan, life_insurance, annuity, pension, startup_equity, angel_investment, business_interest, commodity, collectibles, employment_income, tax_prepayment, other
+- category: MUST be one of the following:
+    Assets: checking, savings, money_market, cd, treasury, bond, brokerage, rsu, espp, iso_options, nso_options, startup_equity, angel_investment, crypto, commodity, collectibles, 401k, roth_ira, ira, pension, annuity, hsa, 529_plan, life_insurance, real_estate, other
     Liabilities: mortgage, heloc, auto_loan, credit_card, student_loan, personal_loan, tax_liability, margin_loan, other
-    Invent descriptive snake_case names for anything not listed.
-- balance: positive number in USD (no $ signs, no commas)
+- balance: current account balance as positive number in USD
 - currency: "USD" (or actual currency if foreign)
 - notes: optional short string for extra context
+
+DO NOT create accounts for:
+- Income records (W-2 wages, 1099 income, dividends received, interest earned, capital gains)
+- Tax withholdings or prepayments
+- One-time transactions or events
+- Historical income that isn't a current balance
+These belong on the Tax Returns page, not Finance.
+
+ONLY create an account if it represents something with a CURRENT BALANCE that someone would track:
+- ✅ "Fidelity 401k" with balance $450,000 (real account)
+- ✅ "Chase Checking" with balance $12,000 (real account)
+- ✅ "Home Mortgage" with balance $380,000 (real debt)
+- ❌ "2024 Wages - Google" (this is income, not an account)
+- ❌ "2024 Federal Tax Withheld" (this is a tax record, not an account)
+- ❌ "Capital Gains 2024" (this is a transaction, not an account)
+- ❌ "Interest Income 2024" (this is income, not an account)
 
 ## Rentals page — Properties
 Each property has:
@@ -115,18 +132,11 @@ Each rental_record has:
 - Lease agreements → rent_collected amount, property address
 - Schedule E data → rental income, expenses by category
 
-## Tax & Income Documents (W-2, 1099, pay stubs, K-1, Schedule K, etc.)
-These contain VERY useful data — extract all of it:
-- W-2 Box 1 wages → { name: "[Year] Wages - [Employer Name]", type: "asset", category: "employment_income", balance: <wages>, notes: "Gross wages per W-2" }
-- W-2 Box 2 federal tax withheld → { name: "[Year] Federal Tax Withheld", type: "asset", category: "tax_prepayment", balance: <amount> }
-- W-2 Box 12 Code D (401k) → { name: "[Employer] 401k", type: "asset", category: "401k" }
-- W-2 Box 12 Code W (HSA) → { name: "HSA", type: "asset", category: "hsa" }
-- 1099-INT → { category: "interest_income" }
-- 1099-DIV → { category: "dividend_income" }
-- 1099-R → { category: "retirement_distribution" }
-- 1099-NEC/MISC → { category: "self_employment_income" } (unless Box 1 Rents → use rental_records)
-- K-1 → { category: "business_interest" or "partnership_income" }
-
+## Tax & Income Documents
+For W-2, 1099, pay stubs, K-1 etc., extract ONLY actual account balances:
+- W-2 Box 12 Code D (401k) → create account: { name: "[Employer] 401k", type: "asset", category: "401k" }
+- W-2 Box 12 Code W (HSA) → create account: { name: "HSA", type: "asset", category: "hsa" }
+DO NOT create accounts for income amounts (wages, interest, dividends, capital gains) or tax withholdings.
 ## Already in the system (DO NOT duplicate these):
 Accounts already added:
 ${existingAccountsList}
@@ -140,8 +150,41 @@ Name: "${docName}"
 ${docText}
 ---
 
-Extract every financial item. Be aggressive — include partial data (use null for unknown fields).
-Skip anything already in the system above.
+## Tax Data (W-2, 1099, K-1, pay stubs, etc.)
+If the document contains income, tax, or withholding data, extract it into the tax_data section.
+Do NOT create "accounts" for income — put it here instead.
+Each tax_data entry has:
+- tax_year: integer (e.g. 2024)
+- field: dotted path to the tax return field (see mapping below)
+- amount: number
+- notes: optional string for context
+
+### US tax field mappings:
+- W-2 Box 1 wages → field: "us.income.wages"
+- W-2 Box 2 federal withheld → field: "us.payments.federal_withheld"
+- W-2 Box 17 state withheld → field: "us.payments.state_withheld"
+- W-2 Box 12 Code D (401k contribution) → field: "us.adjustments.k401_contributions"
+- W-2 Box 12 Code W (HSA contribution) → field: "us.adjustments.hsa_deduction"
+- 1099-INT interest → field: "us.income.interest"
+- 1099-DIV ordinary dividends → field: "us.income.ordinary_dividends"
+- 1099-DIV qualified dividends → field: "us.income.qualified_dividends"
+- 1099-B short-term gains → field: "us.income.st_capital_gains"
+- 1099-B long-term gains → field: "us.income.lt_capital_gains"
+- 1099-R distributions → field: "us.income.ira_distributions"
+- 1099-NEC/MISC self-employment → field: "us.income.business_income"
+- K-1 business/partnership income → field: "us.income.business_income"
+- Schedule E rental income → field: "us.income.rental_income"
+- Estimated tax payments → field: "us.payments.estimated_payments"
+
+### India tax field mappings:
+- Salary income → field: "india.income.salary"
+- TDS on salary → field: "india.taxes_paid.tds_salary"
+- Interest income → field: "india.income.interest_income"
+- STCG equity → field: "india.income.st_equity_gains"
+- LTCG equity → field: "india.income.lt_equity_gains"
+
+Extract EVERYTHING. Be aggressive — include partial data (use null for unknown fields).
+Skip accounts/properties already in the system above.
 
 Return ONLY valid JSON (no markdown fences, no explanation).
 ALL numeric fields must be plain JSON numbers — integer or decimal, no quotes, no $ signs, no commas.
@@ -156,6 +199,10 @@ CORRECT: 450000   WRONG: "450,000" or "$450k"
   ],
   "rental_records": [
     { "address": "123 Main St", "year": 2024, "month": 1, "rent_collected": 2500, "mortgage_pmt": 1800, "vacancy_days": 0, "expenses": { "property_tax": 300, "insurance": 150, "management": 250 }, "notes": "" }
+  ],
+  "tax_data": [
+    { "tax_year": 2024, "field": "us.income.wages", "amount": 180000, "notes": "W-2 Box 1 from Google" },
+    { "tax_year": 2024, "field": "us.payments.federal_withheld", "amount": 35000, "notes": "W-2 Box 2" }
   ]
 }`;
 }
@@ -273,8 +320,46 @@ export async function extractAndInsert(documentId: string): Promise<{ accounts: 
       insertedRecords.push(`${rec.address} ${rec.year}/${rec.month}`);
     }
 
-    return { accounts: insertedAccounts, properties: insertedProperties, rentalRecords: insertedRecords };
+    // ── Tax data (income, withholdings, etc.) → directly to tax_returns ──
+    const insertedTaxData: string[] = [];
+    const { US_DEFAULT, INDIA_DEFAULT } = await import('@/lib/tax-data');
+    for (const td of parsed.tax_data ?? []) {
+      if (!td.field || !td.tax_year || !td.amount) continue;
+      const isUS = td.field.startsWith('us.');
+      const isIndia = td.field.startsWith('india.');
+      if (!isUS && !isIndia) continue;
+
+      const country = isUS ? 'US' : 'India';
+      const taxPath = td.field.slice(isUS ? 3 : 6); // strip "us." or "india."
+      const defaults = country === 'US' ? US_DEFAULT : INDIA_DEFAULT;
+
+      // Load or create tax return
+      const existing = await sql`SELECT id, data FROM tax_returns WHERE tax_year = ${td.tax_year} AND country = ${country}` as { id: string; data: Record<string, unknown> }[];
+      const data = existing.length > 0
+        ? { ...defaults, ...existing[0].data } as Record<string, unknown>
+        : { ...defaults } as Record<string, unknown>;
+
+      // Set the field value (additive for income fields)
+      const keys = taxPath.split('.');
+      let cur = data;
+      for (let i = 0; i < keys.length - 1; i++) {
+        if (typeof cur[keys[i]] !== 'object' || cur[keys[i]] === null) cur[keys[i]] = {};
+        cur = cur[keys[i]] as Record<string, unknown>;
+      }
+      const lastKey = keys[keys.length - 1];
+      cur[lastKey] = (Number(cur[lastKey]) || 0) + td.amount;
+
+      const dataJson = JSON.stringify(data);
+      if (existing.length > 0) {
+        await sql`UPDATE tax_returns SET data = ${dataJson}::jsonb, updated_at = NOW() WHERE id = ${existing[0].id}`;
+      } else {
+        await sql`INSERT INTO tax_returns (tax_year, country, data) VALUES (${td.tax_year}, ${country}, ${dataJson}::jsonb)`;
+      }
+      insertedTaxData.push(`${country} ${td.tax_year}: ${taxPath} = ${td.amount}`);
+    }
+
+    return { accounts: insertedAccounts, properties: insertedProperties, rentalRecords: insertedRecords, taxData: insertedTaxData };
   } catch {
-    return { accounts: [], properties: [], rentalRecords: [] };
+    return { accounts: [], properties: [], rentalRecords: [], taxData: [] };
   }
 }

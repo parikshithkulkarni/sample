@@ -22,6 +22,16 @@ function addrMatch(a: string, b: string): boolean {
   return na === nb || na.startsWith(nb + ' ') || nb.startsWith(na + ' ');
 }
 
+function hasPropertyDuplicates(properties: { address: string }[]): boolean {
+  const seen = new Set<string>();
+  for (const p of properties) {
+    const key = normalizeAddr(p.address);
+    if (seen.has(key)) return true;
+    seen.add(key);
+  }
+  return false;
+}
+
 interface Property {
   id: string;
   address: string;
@@ -90,7 +100,16 @@ export default function RentalPortfolio() {
   })();
 
   useEffect(() => {
-    fetch('/api/rentals').then((r) => r.json()).then((d) => { setProperties(Array.isArray(d) ? d : d?.data ?? []); setLoading(false); });
+    fetch('/api/rentals').then((r) => r.json()).then(async (d) => {
+      const props = Array.isArray(d) ? d : d?.data ?? [];
+      setProperties(props);
+      // Auto-dedup if duplicates detected on load
+      if (hasPropertyDuplicates(props)) {
+        await fetch('/api/rentals/dedup', { method: 'POST' });
+        const fresh = await fetch('/api/rentals').then(r => r.json());
+        setProperties(Array.isArray(fresh) ? fresh : fresh?.data ?? []);
+      }
+    }).finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {

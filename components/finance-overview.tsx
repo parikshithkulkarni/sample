@@ -33,24 +33,31 @@ type SemanticGroup = {
 
 const SEMANTIC_GROUPS: SemanticGroup[] = [
   {
-    key: 'retirement',
-    label: 'Retirement',
-    icon: Landmark,
-    categories: ['401k', 'roth_ira', 'ira', 'pension', 'annuity', 'hsa', '529_plan', 'retirement_distribution'],
-    type: 'asset',
-  },
-  {
-    key: 'investments',
-    label: 'Investments',
-    icon: TrendingUp,
-    categories: ['brokerage', 'rsu', 'espp', 'nso_options', 'iso_options', 'startup_equity', 'angel_investment', 'business_interest', 'crypto', 'commodity', 'collectibles', 'bond', 'treasury', 'cd', 'money_market'],
-    type: 'asset',
-  },
-  {
     key: 'cash',
     label: 'Cash & Banking',
     icon: Wallet,
-    categories: ['checking', 'savings'],
+    categories: ['checking', 'savings', 'money_market'],
+    type: 'asset',
+  },
+  {
+    key: 'retirement',
+    label: 'Retirement',
+    icon: Landmark,
+    categories: ['401k', 'roth_ira', 'ira', 'pension', 'annuity', 'hsa', '529_plan'],
+    type: 'asset',
+  },
+  {
+    key: 'brokerage',
+    label: 'Brokerage & Trading',
+    icon: TrendingUp,
+    categories: ['brokerage', 'crypto', 'bond', 'treasury', 'cd', 'commodity', 'collectibles'],
+    type: 'asset',
+  },
+  {
+    key: 'equity_comp',
+    label: 'Equity & Compensation',
+    icon: Briefcase,
+    categories: ['rsu', 'espp', 'iso_options', 'nso_options', 'startup_equity', 'angel_investment', 'business_interest'],
     type: 'asset',
   },
   {
@@ -62,52 +69,61 @@ const SEMANTIC_GROUPS: SemanticGroup[] = [
   },
   {
     key: 'insurance',
-    label: 'Insurance & Protection',
+    label: 'Insurance',
     icon: Shield,
     categories: ['life_insurance'],
     type: 'asset',
   },
   {
-    key: 'income',
-    label: 'Income & Receivables',
-    icon: Briefcase,
-    categories: ['employment_income', 'self_employment_income', 'partnership_income', 'interest_income', 'dividend_income', 'tax_prepayment'],
-    type: 'asset',
-  },
-  {
-    key: 'debt',
-    label: 'Debt & Loans',
-    icon: CreditCard,
-    categories: ['mortgage', 'heloc', 'auto_loan', 'student_loan', 'personal_loan', 'margin_loan'],
+    key: 'mortgage_debt',
+    label: 'Mortgages & Secured Debt',
+    icon: Building2,
+    categories: ['mortgage', 'heloc', 'auto_loan'],
     type: 'liability',
   },
   {
-    key: 'recurring_liabilities',
-    label: 'Credit & Tax Liabilities',
+    key: 'unsecured_debt',
+    label: 'Credit & Unsecured Debt',
+    icon: CreditCard,
+    categories: ['credit_card', 'personal_loan', 'student_loan', 'margin_loan'],
+    type: 'liability',
+  },
+  {
+    key: 'tax_liability',
+    label: 'Tax Obligations',
     icon: Coins,
-    categories: ['credit_card', 'tax_liability'],
+    categories: ['tax_liability'],
     type: 'liability',
   },
 ];
 
+// Categories that are income/tax records, not real accounts — displayed separately
+const INCOME_TAX_CATEGORIES = new Set([
+  'employment_income', 'self_employment_income', 'partnership_income',
+  'interest_income', 'dividend_income', 'capital_gains', 'rental_income',
+  'tax_prepayment', 'retirement_distribution',
+]);
+
 function getSemanticGroup(account: Account): string {
   const cat = account.category.toLowerCase();
+  if (INCOME_TAX_CATEGORIES.has(cat)) return 'tax_records';
   for (const group of SEMANTIC_GROUPS) {
     if (group.categories.includes(cat)) return group.key;
   }
   return account.type === 'asset' ? 'other_assets' : 'other_liabilities';
 }
 
-// All categories for the add-account form, organized by group
+// All categories for the add-account form
 const CATEGORY_SUGGESTIONS: Record<string, string[]> = {
+  'Cash & Banking': ['checking', 'savings', 'money_market'],
   'Retirement': ['401k', 'roth_ira', 'ira', 'pension', 'annuity', 'hsa', '529_plan'],
-  'Investments': ['brokerage', 'rsu', 'espp', 'iso_options', 'nso_options', 'startup_equity', 'angel_investment', 'crypto', 'bond', 'treasury', 'cd', 'money_market', 'commodity', 'collectibles'],
-  'Cash & Banking': ['checking', 'savings'],
+  'Brokerage & Trading': ['brokerage', 'crypto', 'bond', 'treasury', 'cd', 'commodity', 'collectibles'],
+  'Equity & Compensation': ['rsu', 'espp', 'iso_options', 'nso_options', 'startup_equity', 'angel_investment'],
   'Real Estate': ['real_estate'],
   'Insurance': ['life_insurance'],
-  'Income': ['employment_income', 'interest_income', 'dividend_income', 'self_employment_income', 'tax_prepayment'],
-  'Debt & Loans': ['mortgage', 'heloc', 'auto_loan', 'student_loan', 'personal_loan', 'margin_loan'],
-  'Credit & Tax': ['credit_card', 'tax_liability'],
+  'Mortgages & Secured Debt': ['mortgage', 'heloc', 'auto_loan'],
+  'Credit & Unsecured Debt': ['credit_card', 'personal_loan', 'student_loan', 'margin_loan'],
+  'Tax Obligations': ['tax_liability'],
 };
 
 function normalizeAcctName(name: string): string {
@@ -118,6 +134,16 @@ function normalizeAcctName(name: string): string {
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function hasDuplicates(accounts: { name: string }[]): boolean {
+  const seen = new Set<string>();
+  for (const a of accounts) {
+    const key = normalizeAcctName(a.name);
+    if (seen.has(key)) return true;
+    seen.add(key);
+  }
+  return false;
 }
 
 function labelFor(cat: string) {
@@ -155,14 +181,19 @@ export default function FinanceOverview() {
   })();
 
   useEffect(() => {
-    fetch('/api/finance')
-      .then((r) => r.json())
-      .then((d) => setAccounts(Array.isArray(d) ? d : d?.data ?? []))
-      .finally(() => setLoading(false));
+    async function load() {
+      // Run cleanup on load: removes income/tax records, deduplicates, syncs to tax page
+      await fetch('/api/finance/cleanup', { method: 'POST' }).catch(() => {});
+      const res = await fetch('/api/finance').then(r => r.json());
+      setAccounts(Array.isArray(res) ? res : res?.data ?? []);
+    }
+    load().finally(() => setLoading(false));
   }, []);
 
-  const assets = accounts.filter((a) => a.type === 'asset');
-  const liabilities = accounts.filter((a) => a.type === 'liability');
+  // Exclude income/tax records from net worth — they aren't real account balances
+  const realAccounts = accounts.filter((a) => !INCOME_TAX_CATEGORIES.has(a.category.toLowerCase()));
+  const assets = realAccounts.filter((a) => a.type === 'asset');
+  const liabilities = realAccounts.filter((a) => a.type === 'liability');
   const totalAssets = assets.reduce((s, a) => s + Number(a.balance), 0);
   const totalLiabilities = liabilities.reduce((s, a) => s + Number(a.balance), 0);
   const netWorth = totalAssets - totalLiabilities;
@@ -205,6 +236,16 @@ export default function FinanceOverview() {
         group: { key: 'other_liabilities', label: 'Other Liabilities', icon: Coins, categories: [], type: 'liability' },
         accounts: otherLiabs.sort((a, b) => Number(b.balance) - Number(a.balance)),
         total: otherLiabs.reduce((s, a) => s + Number(a.balance), 0),
+      });
+    }
+
+    // Tax & income records (legacy entries from extraction — not real accounts)
+    const taxRecords = grouped.get('tax_records');
+    if (taxRecords && taxRecords.length > 0) {
+      result.push({
+        group: { key: 'tax_records', label: 'Tax & Income Records', icon: Briefcase, categories: [], type: 'both' },
+        accounts: taxRecords.sort((a, b) => Number(b.balance) - Number(a.balance)),
+        total: taxRecords.reduce((s, a) => s + Number(a.balance), 0),
       });
     }
 
@@ -369,7 +410,9 @@ export default function FinanceOverview() {
       {groupedAccounts.map(({ group, accounts: groupAccounts, total }) => {
         const Icon = group.icon;
         const isLiability = group.type === 'liability';
-        const collapsed = collapsedGroups.has(group.key);
+        const isTaxRecord = group.key === 'tax_records';
+        // Tax records start collapsed by default
+        const collapsed = isTaxRecord ? !collapsedGroups.has(group.key) : collapsedGroups.has(group.key);
 
         return (
           <div key={group.key} className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
@@ -378,12 +421,14 @@ export default function FinanceOverview() {
               className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
               <div className="flex items-center gap-2.5">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isLiability ? 'bg-red-50 dark:bg-red-950/30' : 'bg-sky-50 dark:bg-sky-950/30'}`}>
-                  <Icon size={16} className={isLiability ? 'text-red-500' : 'text-sky-500'} />
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isTaxRecord ? 'bg-amber-50 dark:bg-amber-950/30' : isLiability ? 'bg-red-50 dark:bg-red-950/30' : 'bg-sky-50 dark:bg-sky-950/30'}`}>
+                  <Icon size={16} className={isTaxRecord ? 'text-amber-500' : isLiability ? 'text-red-500' : 'text-sky-500'} />
                 </div>
                 <div className="text-left">
                   <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{group.label}</h3>
-                  <p className="text-xs text-gray-400">{groupAccounts.length} account{groupAccounts.length !== 1 ? 's' : ''}</p>
+                  <p className="text-xs text-gray-400">
+                    {isTaxRecord ? 'Not included in net worth' : `${groupAccounts.length} account${groupAccounts.length !== 1 ? 's' : ''}`}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
