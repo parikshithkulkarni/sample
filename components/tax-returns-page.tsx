@@ -19,20 +19,26 @@ interface TaxReturn {
 
 // Ensure all top-level nested objects exist — prevents crashes when DB has partial data
 function withDefaults(data: unknown, country: Country): UsData | IndiaData {
-  const def = country === 'US' ? US_DEFAULT : INDIA_DEFAULT;
-  if (!data || typeof data !== 'object') return { ...def };
-  const d = data as Record<string, unknown>;
-  const out: Record<string, unknown> = { ...def };
-  for (const key of Object.keys(def as object)) {
-    const defVal = (def as Record<string, unknown>)[key];
-    const storedVal = d[key];
-    if (storedVal !== null && storedVal !== undefined && typeof storedVal === 'object' && typeof defVal === 'object' && defVal !== null) {
-      out[key] = { ...(defVal as object), ...(storedVal as object) };
-    } else if (storedVal !== null && storedVal !== undefined) {
-      out[key] = storedVal;
-    }
+  if (country === 'US') {
+    const s = (data && typeof data === 'object' ? data : {}) as Partial<UsData>;
+    return { ...US_DEFAULT, ...s,
+      income:      { ...US_DEFAULT.income,      ...(s.income      ?? {}) },
+      adjustments: { ...US_DEFAULT.adjustments, ...(s.adjustments ?? {}) },
+      deductions:  { ...US_DEFAULT.deductions,  ...(s.deductions  ?? {}) },
+      credits:     { ...US_DEFAULT.credits,     ...(s.credits     ?? {}) },
+      other_taxes: { ...US_DEFAULT.other_taxes, ...(s.other_taxes ?? {}) },
+      payments:    { ...US_DEFAULT.payments,    ...(s.payments    ?? {}) },
+      iso_amt:     { ...US_DEFAULT.iso_amt,     ...(s.iso_amt     ?? {}) },
+    };
+  } else {
+    const s = (data && typeof data === 'object' ? data : {}) as Partial<IndiaData>;
+    return { ...INDIA_DEFAULT, ...s,
+      income:     { ...INDIA_DEFAULT.income,     ...(s.income     ?? {}) },
+      deductions: { ...INDIA_DEFAULT.deductions, ...(s.deductions ?? {}) },
+      taxes_paid: { ...INDIA_DEFAULT.taxes_paid, ...(s.taxes_paid ?? {}) },
+      dtaa:       { ...INDIA_DEFAULT.dtaa,       ...(s.dtaa       ?? {}) },
+    };
   }
-  return out as UsData | IndiaData;
 }
 
 const CURRENT_YEAR = new Date().getFullYear();
