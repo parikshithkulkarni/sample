@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Building2, TrendingUp } from 'lucide-react';
+import { Plus, Building2, TrendingUp, Trash2 } from 'lucide-react';
 import { fmt } from '@/lib/utils';
 
 interface Property {
@@ -40,6 +40,7 @@ export default function RentalPortfolio() {
   const [stats, setStats] = useState<PropertyStats[]>([]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [adding, setAdding] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [form, setForm] = useState({ address: '', purchase_price: '', purchase_date: '', market_value: '', mortgage_balance: '', notes: '' });
 
   useEffect(() => {
@@ -73,6 +74,16 @@ export default function RentalPortfolio() {
     }
     if (properties.length > 0) loadStats();
   }, [properties, selectedYear]);
+
+  async function deleteProperty(e: React.MouseEvent, id: string) {
+    e.stopPropagation();
+    if (!confirm('Delete this property and all its records?')) return;
+    setDeleting(id);
+    await fetch(`/api/rentals/${id}`, { method: 'DELETE' });
+    setProperties((prev) => prev.filter((p) => p.id !== id));
+    setStats((prev) => prev.filter((p) => p.id !== id));
+    setDeleting(null);
+  }
 
   async function addProperty(e: React.FormEvent) {
     e.preventDefault();
@@ -170,7 +181,16 @@ export default function RentalPortfolio() {
           <div className="flex items-start gap-3">
             <Building2 size={20} className="text-sky-500 mt-0.5 shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-800 truncate">{p.address}</p>
+              <div className="flex items-start justify-between gap-1">
+                <p className="text-sm font-medium text-gray-800 truncate">{p.address}</p>
+                <button
+                  onClick={(e) => deleteProperty(e, p.id)}
+                  disabled={deleting === p.id}
+                  className="shrink-0 text-gray-300 hover:text-red-400 disabled:opacity-40 p-0.5"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
               {p.purchase_date && (
                 <p className="text-xs text-gray-400">Purchased {new Date(p.purchase_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</p>
               )}
