@@ -57,7 +57,7 @@ export const authOptions: NextAuthOptions = {
           ) {
             return { id: '1', name: credentials.username };
           }
-          return null;
+          // Fall through to DB auth if env-var credentials don't match
         }
 
         // ── DB auth ────────────────────────────────────────────────────────────
