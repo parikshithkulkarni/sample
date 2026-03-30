@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, MessageCircle, FileText, DollarSign, Building2 } from 'lucide-react';
+import { Home, MessageCircle, FileText, DollarSign, Building2, Calculator } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const links = [
@@ -11,6 +11,7 @@ const links = [
   { href: '/documents', label: 'Docs',    Icon: FileText },
   { href: '/finance',   label: 'Finance', Icon: DollarSign },
   { href: '/rentals',   label: 'Rentals', Icon: Building2 },
+  { href: '/scenarios', label: 'Taxes',   Icon: Calculator },
 ];
 
 export default function Nav() {
@@ -29,8 +30,8 @@ export default function Nav() {
                 active ? 'text-sky-600' : 'text-gray-500 hover:text-gray-800',
               )}
             >
-              <Icon size={22} strokeWidth={active ? 2.5 : 1.8} />
-              <span className="mt-0.5">{label}</span>
+              <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
+              <span className="mt-0.5 text-[10px]">{label}</span>
             </Link>
           );
         })}

@@ -15,7 +15,7 @@ export async function POST(
   if (!session) return new Response('Unauthorized', { status: 401 });
 
   await runMigrations();
-  await params; // ensure params resolved (id not used — data comes from body)
+  const { id } = await params;
 
   const { accounts, properties } = (await req.json()) as {
     accounts: { name: string; type: string; category: string; balance: number | null; currency: string; notes?: string }[];
@@ -83,6 +83,9 @@ export async function POST(
       savedProperties.push(prop.address);
     }
   }
+
+  // Mark document as extracted
+  await sql`UPDATE documents SET extracted_at = NOW() WHERE id = ${id}`.catch(() => {});
 
   return Response.json({ saved: { accounts: savedAccounts, properties: savedProperties } });
 }

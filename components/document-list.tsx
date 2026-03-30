@@ -10,6 +10,7 @@ interface Doc {
   summary: string | null;
   insights: string[] | null;
   added_at: string;
+  extracted_at: string | null;
 }
 
 interface ExtractedAccount {
@@ -208,6 +209,11 @@ export default function DocumentList({ refresh = 0 }: Props) {
                       {tag}
                     </span>
                   ))}
+                  {d.extracted_at && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                      ✓ extracted
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">

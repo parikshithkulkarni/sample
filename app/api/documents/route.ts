@@ -18,7 +18,7 @@ export async function GET(_req: Request) {
     await runMigrations();
     await seedDeadlines();
     const rows = await sql`
-      SELECT id, name, tags, summary, insights, added_at
+      SELECT id, name, tags, summary, insights, added_at, extracted_at
       FROM documents ORDER BY added_at DESC
     `;
     return Response.json(rows);

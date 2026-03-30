@@ -93,6 +93,9 @@ export async function runMigrations() {
     )
   `;
 
+  // Add extracted_at to documents if not present (tracks which docs have had data saved)
+  await sql`ALTER TABLE documents ADD COLUMN IF NOT EXISTS extracted_at TIMESTAMPTZ`;
+
   // Admin users — stores hashed credentials so no env vars needed after first setup
   await sql`
     CREATE TABLE IF NOT EXISTS admin_users (

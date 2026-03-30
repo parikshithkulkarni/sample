@@ -1,11 +1,41 @@
 'use client';
 
 import { useChat } from 'ai/react';
-import { Send, Globe, FileText } from 'lucide-react';
+import { Send, Globe, FileText, Database } from 'lucide-react';
 import { useRef, useEffect } from 'react';
 
 interface Props {
   initialQuestion?: string;
+}
+
+// Safe citation renderer — no dangerouslySetInnerHTML
+function MessageContent({ content }: { content: string }) {
+  // Split on [doc: ...] and [web: ...] citations
+  const parts = content.split(/(\[(?:doc|web): [^\]]+\])/g);
+  return (
+    <span>
+      {parts.map((part, i) => {
+        const docMatch = part.match(/^\[doc: ([^\]]+)\]$/);
+        const webMatch = part.match(/^\[web: ([^\]]+)\]$/);
+        if (docMatch) {
+          return (
+            <span key={i} className="inline-flex items-center gap-1 text-xs bg-sky-50 text-sky-700 px-1.5 py-0.5 rounded font-medium mx-0.5">
+              <FileText size={10} /> {docMatch[1]}
+            </span>
+          );
+        }
+        if (webMatch) {
+          return (
+            <span key={i} className="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-medium mx-0.5">
+              <Globe size={10} /> {webMatch[1]}
+            </span>
+          );
+        }
+        // Render plain text — preserve line breaks
+        return <span key={i} className="whitespace-pre-wrap">{part}</span>;
+      })}
+    </span>
+  );
 }
 
 export default function ChatInterface({ initialQuestion }: Props) {
@@ -13,7 +43,6 @@ export default function ChatInterface({ initialQuestion }: Props) {
     api: '/api/chat',
   });
 
-  // Auto-send initial question from ?q= param
   const sentRef = useRef(false);
   useEffect(() => {
     if (initialQuestion && !sentRef.current) {
@@ -27,13 +56,6 @@ export default function ChatInterface({ initialQuestion }: Props) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  function renderContent(content: string) {
-    // Highlight doc and web citations
-    return content
-      .replace(/\[doc: ([^\]]+)\]/g, '<span class="inline-flex items-center gap-1 text-xs bg-sky-50 text-sky-700 px-1.5 py-0.5 rounded font-medium">📄 $1</span>')
-      .replace(/\[web: ([^\]]+)\]/g, '<span class="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-medium">🌐 $1</span>');
-  }
-
   return (
     <div className="flex flex-col h-full">
       {/* Messages */}
@@ -41,28 +63,20 @@ export default function ChatInterface({ initialQuestion }: Props) {
         {messages.length === 0 && (
           <div className="text-center text-gray-400 text-sm mt-16">
             <p className="text-2xl mb-2">🧠</p>
-            <p>Ask anything about your documents,</p>
-            <p>finances, taxes, or the web.</p>
+            <p>Ask anything about your finances,</p>
+            <p>documents, taxes, or the web.</p>
           </div>
         )}
         {messages.map((m) => (
-          <div
-            key={m.id}
-            className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
+          <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
-              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                 m.role === 'user'
-                  ? 'bg-sky-600 text-white rounded-br-sm'
+                  ? 'bg-sky-600 text-white rounded-br-sm whitespace-pre-wrap'
                   : 'bg-gray-100 text-gray-800 rounded-bl-sm'
               }`}
-              dangerouslySetInnerHTML={
-                m.role === 'assistant'
-                  ? { __html: renderContent(m.content) }
-                  : undefined
-              }
             >
-              {m.role === 'user' ? m.content : undefined}
+              {m.role === 'user' ? m.content : <MessageContent content={m.content} />}
             </div>
           </div>
         ))}
@@ -82,10 +96,10 @@ export default function ChatInterface({ initialQuestion }: Props) {
 
       {/* Input */}
       <div className="border-t border-gray-200 p-3 bg-white">
-        <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
-          <FileText size={12} /> Docs
-          <Globe size={12} className="ml-2" /> Web
-          <span>— sources auto-cited</span>
+        <div className="flex items-center gap-3 text-xs text-gray-400 mb-2">
+          <span className="flex items-center gap-1"><Database size={11} /> Live data</span>
+          <span className="flex items-center gap-1"><FileText size={11} /> Docs</span>
+          <span className="flex items-center gap-1"><Globe size={11} /> Web</span>
         </div>
         <form onSubmit={handleSubmit} className="flex gap-2">
           <input
