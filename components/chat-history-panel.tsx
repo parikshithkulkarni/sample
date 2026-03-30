@@ -37,7 +37,7 @@ export default function ChatHistoryPanel({ currentSessionId, onSelectSession, on
   useEffect(() => {
     fetch('/api/chat/sessions')
       .then((r) => r.json())
-      .then((data: ChatSession[]) => { setSessions(Array.isArray(data) ? data : []); setLoading(false); })
+      .then((data) => { setSessions(Array.isArray(data) ? data : data?.data ?? []); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
 

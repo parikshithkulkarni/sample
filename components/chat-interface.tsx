@@ -67,7 +67,7 @@ export default function ChatInterface({ initialQuestion }: Props) {
   useEffect(() => {
     fetch('/api/documents')
       .then((r) => r.json())
-      .then((docs: DocOption[]) => { if (Array.isArray(docs)) setAllDocs(docs.map((d) => ({ id: d.id, name: d.name }))); })
+      .then((res) => { const docs = Array.isArray(res) ? res : res?.data ?? []; setAllDocs(docs.map((d: DocOption) => ({ id: d.id, name: d.name }))); })
       .catch(() => {});
   }, []);
 

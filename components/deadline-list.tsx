@@ -38,7 +38,7 @@ export default function DeadlineList() {
   const [form, setForm] = useState({ title: '', due_date: '', category: 'other', notes: '' });
 
   useEffect(() => {
-    fetch('/api/deadlines').then((r) => r.json()).then(setDeadlines);
+    fetch('/api/deadlines').then((r) => r.json()).then((d) => setDeadlines(Array.isArray(d) ? d : d?.data ?? []));
   }, []);
 
   async function toggleDone(d: Deadline) {

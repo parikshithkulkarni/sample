@@ -59,7 +59,7 @@ export default function FinanceOverview() {
   })();
 
   useEffect(() => {
-    fetch('/api/finance').then((r) => r.json()).then(setAccounts);
+    fetch('/api/finance').then((r) => r.json()).then((d) => setAccounts(Array.isArray(d) ? d : d?.data ?? []));
   }, []);
 
   const assets = accounts.filter((a) => a.type === 'asset');

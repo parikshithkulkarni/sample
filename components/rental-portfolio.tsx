@@ -84,7 +84,7 @@ export default function RentalPortfolio() {
   })();
 
   useEffect(() => {
-    fetch('/api/rentals').then((r) => r.json()).then(setProperties);
+    fetch('/api/rentals').then((r) => r.json()).then((d) => setProperties(Array.isArray(d) ? d : d?.data ?? []));
   }, []);
 
   useEffect(() => {
