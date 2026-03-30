@@ -5,7 +5,7 @@ import { RefreshCw, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import TaxReturnUS from '@/components/tax-return-us';
 import TaxReturnIndia from '@/components/tax-return-india';
 import { US_DEFAULT, INDIA_DEFAULT } from '@/lib/tax-data';
-import type { UsData, IndiaData } from '@/lib/tax-data';
+import type { UsData, IndiaData, TaxSources } from '@/lib/tax-data';
 
 type Country = 'US' | 'India';
 
@@ -14,6 +14,7 @@ interface TaxReturn {
   tax_year: number;
   country: Country;
   data: UsData | IndiaData;
+  sources: TaxSources;
   updated_at: string | null;
 }
 
@@ -71,9 +72,9 @@ export default function TaxReturnsPage() {
       const json = await res.json() as TaxReturn;
       if (!json?.data || typeof json.data !== 'object') throw new Error('Invalid response shape');
       // Merge with defaults so missing nested fields never crash the component
-      setTaxReturn({ ...json, data: withDefaults(json.data, c) });
+      setTaxReturn({ ...json, sources: json.sources ?? {}, data: withDefaults(json.data, c) });
     } catch {
-      setTaxReturn({ id: null, tax_year: y, country: c, data: withDefaults(null, c), updated_at: null });
+      setTaxReturn({ id: null, tax_year: y, country: c, data: withDefaults(null, c), sources: {}, updated_at: null });
     } finally {
       setLoading(false);
     }
@@ -93,7 +94,7 @@ export default function TaxReturnsPage() {
         body: JSON.stringify({ year, country }),
       });
       const updated = await res.json() as TaxReturn;
-      setTaxReturn({ ...updated, data: withDefaults(updated.data, country) });
+      setTaxReturn({ ...updated, sources: updated.sources ?? {}, data: withDefaults(updated.data, country) });
     } finally {
       setSyncing(false);
     }
@@ -202,12 +203,14 @@ export default function TaxReturnsPage() {
             <TaxReturnUS
               taxYear={year}
               data={withDefaults(taxReturn.data, 'US') as UsData}
+              sources={taxReturn.sources ?? {}}
               onChange={handleChange}
             />
           ) : (
             <TaxReturnIndia
               taxYear={year}
               data={withDefaults(taxReturn.data, 'India') as IndiaData}
+              sources={taxReturn.sources ?? {}}
               onChange={handleChange}
             />
           )

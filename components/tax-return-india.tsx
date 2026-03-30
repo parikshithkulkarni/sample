@@ -1,11 +1,12 @@
 'use client';
 
-import type { IndiaData, ResidentialStatus, TaxRegime } from '@/lib/tax-data';
+import type { IndiaData, ResidentialStatus, TaxRegime, TaxSources } from '@/lib/tax-data';
 import { calcIndia, INDIA_DEFAULT } from '@/lib/tax-data';
 
 interface Props {
   taxYear: number;
   data: IndiaData;
+  sources: TaxSources;
   onChange: (patch: Partial<IndiaData>) => void;
 }
 
@@ -14,12 +15,21 @@ function fmtINR(n: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 }
 
-function Row({ label, value, onChange, note }: { label: string; value: number; onChange: (v: number) => void; note?: string }) {
+function Row({ label, value, onChange, note, source }: { label: string; value: number; onChange: (v: number) => void; note?: string; source?: { label: string; type: string } }) {
   return (
-    <div className="flex items-center gap-2 py-1.5 border-b border-gray-50 last:border-0">
+    <div className="flex items-center gap-2 py-1.5 border-b border-gray-50 dark:border-gray-800 last:border-0">
       <div className="flex-1 min-w-0">
-        <span className="text-xs text-gray-600">{label}</span>
-        {note && <span className="text-[10px] text-gray-400 ml-1">({note})</span>}
+        <span className="text-xs text-gray-600 dark:text-gray-400">{label}</span>
+        {note && <span className="text-[10px] text-gray-400 dark:text-gray-500 ml-1">({note})</span>}
+        {source && (
+          <span className={`ml-1 text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
+            source.type === 'rental' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400'
+            : source.type === 'account' ? 'bg-sky-50 text-sky-600 dark:bg-sky-950/30 dark:text-sky-400'
+            : 'bg-purple-50 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400'
+          }`} title={source.label}>
+            {source.label.length > 25 ? source.label.slice(0, 25) + '…' : source.label}
+          </span>
+        )}
       </div>
       <div className="relative shrink-0">
         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">₹</span>
@@ -27,7 +37,7 @@ function Row({ label, value, onChange, note }: { label: string; value: number; o
           type="number"
           value={value || ''}
           onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-          className="w-32 pl-5 pr-2 py-1 text-xs text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-400"
+          className="w-32 pl-5 pr-2 py-1 text-xs text-right border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-400"
           placeholder="0"
         />
       </div>
@@ -52,7 +62,8 @@ function fyLabel(year: number) {
   return `FY ${year}-${String(year + 1).slice(2)} (AY ${year + 1}-${String(year + 2).slice(2)})`;
 }
 
-export default function TaxReturnIndia({ taxYear, data, onChange }: Props) {
+export default function TaxReturnIndia({ taxYear, data, sources, onChange }: Props) {
+  const src = (path: string) => sources[path] as { label: string; type: string } | undefined;
   // Merge with defaults so missing nested objects never crash the component
   const d: IndiaData = {
     ...INDIA_DEFAULT,
@@ -181,7 +192,7 @@ export default function TaxReturnIndia({ taxYear, data, onChange }: Props) {
 
       {/* Salary */}
       <Section title="Salary Income" badge={fmtINR(calc.netSalary)}>
-        <Row label="Gross Salary (Form 16 Part B)" value={d.income.salary} onChange={(v) => patchIncome('salary', v)} />
+        <Row label="Gross Salary (Form 16 Part B)" value={d.income.salary} onChange={(v) => patchIncome('salary', v)} source={src('income.salary')} />
         <Row label="HRA Received" value={d.income.hra_received} onChange={(v) => patchIncome('hra_received', v)} />
         <Row label="HRA Exempt (u/s 10(13A))" value={d.income.hra_exempt} onChange={(v) => patchIncome('hra_exempt', v)} note="city-based formula" />
         <Row label="Standard Deduction" value={d.income.standard_deduction} onChange={(v) => patchIncome('standard_deduction', v)} note="₹50,000" />
@@ -190,7 +201,7 @@ export default function TaxReturnIndia({ taxYear, data, onChange }: Props) {
 
       {/* House Property */}
       <Section title="House Property Income">
-        <Row label="Annual Rent Received" value={d.income.house_property_rent} onChange={(v) => patchIncome('house_property_rent', v)} />
+        <Row label="Annual Rent Received" value={d.income.house_property_rent} onChange={(v) => patchIncome('house_property_rent', v)} source={src('income.house_property_rent')} />
         {d.income.house_property_rent > 0 && (
           <div className="py-1 flex items-center gap-2 border-b border-gray-50">
             <span className="flex-1 text-xs text-gray-400">Standard Deduction (30%)</span>
@@ -210,8 +221,8 @@ export default function TaxReturnIndia({ taxYear, data, onChange }: Props) {
 
       {/* Other income */}
       <Section title="Other Income">
-        <Row label="Interest Income (FD, savings)" value={d.income.interest_income} onChange={(v) => patchIncome('interest_income', v)} />
-        <Row label="Business / Profession Income" value={d.income.business_income} onChange={(v) => patchIncome('business_income', v)} />
+        <Row label="Interest Income (FD, savings)" value={d.income.interest_income} onChange={(v) => patchIncome('interest_income', v)} source={src('income.interest_income')} />
+        <Row label="Business / Profession Income" value={d.income.business_income} onChange={(v) => patchIncome('business_income', v)} source={src('income.business_income')} />
         <Row label="Other Sources" value={d.income.other_income} onChange={(v) => patchIncome('other_income', v)} />
         {d.residential_status !== 'NR' && (
           <Row label="Foreign Income (DTAA applicable)" value={d.income.foreign_income} onChange={(v) => patchIncome('foreign_income', v)} />
@@ -245,7 +256,7 @@ export default function TaxReturnIndia({ taxYear, data, onChange }: Props) {
 
       {/* Taxes Paid */}
       <Section title="Taxes Paid (Form 26AS)" badge={fmtINR(calc.totalPaid)}>
-        <Row label="TDS on Salary (Form 16)" value={d.taxes_paid.tds_salary} onChange={(v) => patchTax('tds_salary', v)} />
+        <Row label="TDS on Salary (Form 16)" value={d.taxes_paid.tds_salary} onChange={(v) => patchTax('tds_salary', v)} source={src('taxes_paid.tds_salary')} />
         <Row label="TDS — Other Income (26AS)" value={d.taxes_paid.tds_other} onChange={(v) => patchTax('tds_other', v)} />
         <Row label="Advance Tax Paid" value={d.taxes_paid.advance_tax} onChange={(v) => patchTax('advance_tax', v)} />
         <Row label="Self-Assessment Tax" value={d.taxes_paid.self_assessment} onChange={(v) => patchTax('self_assessment', v)} />

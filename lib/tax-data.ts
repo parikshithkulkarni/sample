@@ -23,6 +23,14 @@ export const INDIA_DEFAULT: IndiaData = {
   dtaa: { applicable: false, country: '', foreign_income: 0, foreign_tax_paid: 0 },
 };
 
+// ── Source tracking ───────────────────────────────────────────────────────────
+// Maps dotted field paths (e.g. "income.wages") to the source that populated them
+export interface FieldSource {
+  label: string;      // e.g. "W-2 2024.pdf" or "2024 Wages - Acme Corp"
+  type: 'document' | 'account' | 'rental' | 'manual';
+}
+export type TaxSources = Record<string, FieldSource>;
+
 // ── Type definitions ───────────────────────────────────────────────────────────
 
 export type FilingStatus = 'single' | 'married_joint' | 'married_separate' | 'head_of_household';

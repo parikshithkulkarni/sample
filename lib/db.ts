@@ -155,6 +155,8 @@ export async function runMigrations() {
       UNIQUE (tax_year, country)
     )
   `;
+  // Add sources column to track where each field value came from
+  await sql`ALTER TABLE tax_returns ADD COLUMN IF NOT EXISTS sources JSONB NOT NULL DEFAULT '{}'`;
   await sql`CREATE INDEX IF NOT EXISTS tax_returns_year_idx ON tax_returns (tax_year DESC, country)`;
 }
 

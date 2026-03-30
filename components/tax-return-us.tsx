@@ -2,12 +2,13 @@
 
 import { useEffect, useRef } from 'react';
 import { fmt } from '@/lib/utils';
-import type { UsData, FilingStatus } from '@/lib/tax-data';
+import type { UsData, FilingStatus, TaxSources } from '@/lib/tax-data';
 import { calcUS } from '@/lib/tax-data';
 
 interface Props {
   taxYear: number;
   data: UsData;
+  sources: TaxSources;
   onChange: (patch: Partial<UsData>) => void;
 }
 
@@ -18,12 +19,21 @@ const FILING_STATUSES: { value: FilingStatus; label: string }[] = [
   { value: 'head_of_household', label: 'Head of Household' },
 ];
 
-function Row({ label, value, onChange, note }: { label: string; value: number; onChange: (v: number) => void; note?: string }) {
+function Row({ label, value, onChange, note, source }: { label: string; value: number; onChange: (v: number) => void; note?: string; source?: { label: string; type: string } }) {
   return (
-    <div className="flex items-center gap-2 py-1.5 border-b border-gray-50 last:border-0">
+    <div className="flex items-center gap-2 py-1.5 border-b border-gray-50 dark:border-gray-800 last:border-0">
       <div className="flex-1 min-w-0">
-        <span className="text-xs text-gray-600">{label}</span>
-        {note && <span className="text-[10px] text-gray-400 ml-1">({note})</span>}
+        <span className="text-xs text-gray-600 dark:text-gray-400">{label}</span>
+        {note && <span className="text-[10px] text-gray-400 dark:text-gray-500 ml-1">({note})</span>}
+        {source && (
+          <span className={`ml-1 text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
+            source.type === 'rental' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400'
+            : source.type === 'account' ? 'bg-sky-50 text-sky-600 dark:bg-sky-950/30 dark:text-sky-400'
+            : 'bg-purple-50 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400'
+          }`} title={source.label}>
+            {source.label.length > 25 ? source.label.slice(0, 25) + '…' : source.label}
+          </span>
+        )}
       </div>
       <div className="relative shrink-0">
         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">$</span>
@@ -31,7 +41,7 @@ function Row({ label, value, onChange, note }: { label: string; value: number; o
           type="number"
           value={value || ''}
           onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-          className="w-32 pl-5 pr-2 py-1 text-xs text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-400"
+          className="w-32 pl-5 pr-2 py-1 text-xs text-right border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-400"
           placeholder="0"
         />
       </div>
@@ -51,7 +61,9 @@ function Section({ title, children, badge }: { title: string; children: React.Re
   );
 }
 
-export default function TaxReturnUS({ taxYear, data, onChange }: Props) {
+export default function TaxReturnUS({ taxYear, data, sources, onChange }: Props) {
+  // Helper to look up source for a dotted path like "income.wages"
+  const src = (path: string) => sources[path] as { label: string; type: string } | undefined;
   const calc = calcUS(data, taxYear);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -152,26 +164,26 @@ export default function TaxReturnUS({ taxYear, data, onChange }: Props) {
 
       {/* Income */}
       <Section title="Income (Form 1040)" badge={fmt(calc.totalIncome)}>
-        <Row label="Wages, Salaries (W-2 Box 1)" value={data.income.wages} onChange={(v) => patchIncome('wages', v)} note="Box 1" />
-        <Row label="Interest Income (1099-INT)" value={data.income.interest} onChange={(v) => patchIncome('interest', v)} />
-        <Row label="Ordinary Dividends (1099-DIV)" value={data.income.ordinary_dividends} onChange={(v) => patchIncome('ordinary_dividends', v)} />
-        <Row label="Qualified Dividends" value={data.income.qualified_dividends} onChange={(v) => patchIncome('qualified_dividends', v)} />
+        <Row label="Wages, Salaries (W-2 Box 1)" value={data.income.wages} onChange={(v) => patchIncome('wages', v)} note="Box 1" source={src('income.wages')} />
+        <Row label="Interest Income (1099-INT)" value={data.income.interest} onChange={(v) => patchIncome('interest', v)} source={src('income.interest')} />
+        <Row label="Ordinary Dividends (1099-DIV)" value={data.income.ordinary_dividends} onChange={(v) => patchIncome('ordinary_dividends', v)} source={src('income.ordinary_dividends')} />
+        <Row label="Qualified Dividends" value={data.income.qualified_dividends} onChange={(v) => patchIncome('qualified_dividends', v)} source={src('income.qualified_dividends')} />
         <Row label="Short-Term Capital Gains" value={data.income.st_capital_gains} onChange={(v) => patchIncome('st_capital_gains', v)} />
         <Row label="Long-Term Capital Gains" value={data.income.lt_capital_gains} onChange={(v) => patchIncome('lt_capital_gains', v)} />
-        <Row label="IRA / 401k Distributions (1099-R)" value={data.income.ira_distributions} onChange={(v) => patchIncome('ira_distributions', v)} />
+        <Row label="IRA / 401k Distributions (1099-R)" value={data.income.ira_distributions} onChange={(v) => patchIncome('ira_distributions', v)} source={src('income.ira_distributions')} />
         <Row label="Pension & Annuity" value={data.income.pension_annuity} onChange={(v) => patchIncome('pension_annuity', v)} />
-        <Row label="Rental Income (Schedule E)" value={data.income.rental_income} onChange={(v) => patchIncome('rental_income', v)} />
-        <Row label="Business / Self-Employment" value={data.income.business_income} onChange={(v) => patchIncome('business_income', v)} />
+        <Row label="Rental Income (Schedule E)" value={data.income.rental_income} onChange={(v) => patchIncome('rental_income', v)} source={src('income.rental_income')} />
+        <Row label="Business / Self-Employment" value={data.income.business_income} onChange={(v) => patchIncome('business_income', v)} source={src('income.business_income')} />
         <Row label="Social Security Benefits" value={data.income.social_security} onChange={(v) => patchIncome('social_security', v)} note="85% taxable" />
         <Row label="Other Income" value={data.income.other_income} onChange={(v) => patchIncome('other_income', v)} />
       </Section>
 
       {/* Adjustments */}
       <Section title="Adjustments to Income" badge={`−${fmt(Object.values(data.adjustments).reduce((s, v) => s + v, 0))}`}>
-        <Row label="401k / 403b Contributions" value={data.adjustments.k401_contributions} onChange={(v) => patchAdj('k401_contributions', v)} note="W-2 Box 12D" />
+        <Row label="401k / 403b Contributions" value={data.adjustments.k401_contributions} onChange={(v) => patchAdj('k401_contributions', v)} note="W-2 Box 12D" source={src('adjustments.k401_contributions')} />
         <Row label="Traditional IRA Deduction" value={data.adjustments.ira_deduction} onChange={(v) => patchAdj('ira_deduction', v)} />
-        <Row label="HSA Deduction (Form 8889)" value={data.adjustments.hsa_deduction} onChange={(v) => patchAdj('hsa_deduction', v)} />
-        <Row label="Student Loan Interest" value={data.adjustments.student_loan_interest} onChange={(v) => patchAdj('student_loan_interest', v)} note="max $2,500" />
+        <Row label="HSA Deduction (Form 8889)" value={data.adjustments.hsa_deduction} onChange={(v) => patchAdj('hsa_deduction', v)} source={src('adjustments.hsa_deduction')} />
+        <Row label="Student Loan Interest" value={data.adjustments.student_loan_interest} onChange={(v) => patchAdj('student_loan_interest', v)} note="max $2,500" source={src('adjustments.student_loan_interest')} />
         <Row label="½ Self-Employment Tax" value={data.adjustments.self_employment_tax} onChange={(v) => patchAdj('self_employment_tax', v)} />
         <Row label="Educator Expenses" value={data.adjustments.educator_expenses} onChange={(v) => patchAdj('educator_expenses', v)} note="max $300" />
         <Row label="Other Adjustments" value={data.adjustments.other_adjustments} onChange={(v) => patchAdj('other_adjustments', v)} />
@@ -190,8 +202,8 @@ export default function TaxReturnUS({ taxYear, data, onChange }: Props) {
           </label>
         </div>
         <div className={data.deductions.use_standard ? 'opacity-40 pointer-events-none' : ''}>
-          <Row label="Mortgage Interest (1098)" value={data.deductions.mortgage_interest} onChange={(v) => patchDed('mortgage_interest', v)} />
-          <Row label="State & Local Taxes (SALT)" value={data.deductions.salt} onChange={(v) => patchDed('salt', v)} note="capped $10k" />
+          <Row label="Mortgage Interest (1098)" value={data.deductions.mortgage_interest} onChange={(v) => patchDed('mortgage_interest', v)} source={src('deductions.mortgage_interest')} />
+          <Row label="State & Local Taxes (SALT)" value={data.deductions.salt} onChange={(v) => patchDed('salt', v)} note="capped $10k" source={src('deductions.salt')} />
           <Row label="Charitable Contributions" value={data.deductions.charitable} onChange={(v) => patchDed('charitable', v)} />
           <Row label="Medical Expenses" value={data.deductions.medical_expenses} onChange={(v) => patchDed('medical_expenses', v)} note="&gt;7.5% AGI" />
           <Row label="Other Itemized" value={data.deductions.other_itemized} onChange={(v) => patchDed('other_itemized', v)} />
@@ -221,13 +233,13 @@ export default function TaxReturnUS({ taxYear, data, onChange }: Props) {
         <Row label="Shares Exercised (#)" value={data.iso_amt.shares_exercised} onChange={(v) => patchISO('shares_exercised', v)} />
         <Row label="FMV at Exercise" value={data.iso_amt.fmv_at_exercise} onChange={(v) => patchISO('fmv_at_exercise', v)} />
         <Row label="Exercise Price" value={data.iso_amt.exercise_price} onChange={(v) => patchISO('exercise_price', v)} />
-        <Row label="AMT Adjustment" value={data.iso_amt.amt_adjustment} onChange={(v) => patchISO('amt_adjustment', v)} note="(FMV − Strike) × Shares" />
+        <Row label="AMT Adjustment" value={data.iso_amt.amt_adjustment} onChange={(v) => patchISO('amt_adjustment', v)} note="(FMV − Strike) × Shares" source={src('iso_amt.amt_adjustment')} />
       </Section>
 
       {/* Payments */}
       <Section title="Payments & Withholding" badge={fmt(calc.totalPayments)}>
-        <Row label="Federal Tax Withheld (W-2 Box 2)" value={data.payments.federal_withheld} onChange={(v) => patchPayments('federal_withheld', v)} />
-        <Row label="State Tax Withheld" value={data.payments.state_withheld} onChange={(v) => patchPayments('state_withheld', v)} />
+        <Row label="Federal Tax Withheld (W-2 Box 2)" value={data.payments.federal_withheld} onChange={(v) => patchPayments('federal_withheld', v)} source={src('payments.federal_withheld')} />
+        <Row label="State Tax Withheld" value={data.payments.state_withheld} onChange={(v) => patchPayments('state_withheld', v)} source={src('payments.state_withheld')} />
         <Row label="Estimated Tax Payments" value={data.payments.estimated_payments} onChange={(v) => patchPayments('estimated_payments', v)} note="Form 1040-ES" />
         <Row label="Applied from Prior Year" value={data.payments.applied_from_prior} onChange={(v) => patchPayments('applied_from_prior', v)} />
       </Section>

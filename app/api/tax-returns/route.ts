@@ -38,20 +38,20 @@ export async function GET(req: Request) {
 
   try {
     const rows = await sql`
-      SELECT id, tax_year, country, data, updated_at
+      SELECT id, tax_year, country, data, sources, updated_at
       FROM tax_returns
       WHERE tax_year = ${year} AND country = ${country}
-    ` as { id: string; tax_year: number; country: string; data: Record<string, unknown>; updated_at: string }[];
+    ` as { id: string; tax_year: number; country: string; data: Record<string, unknown>; sources: Record<string, unknown>; updated_at: string }[];
 
     if (rows.length === 0) {
-      return Response.json({ id: null, tax_year: year, country, data: defaults, updated_at: null });
+      return Response.json({ id: null, tax_year: year, country, data: defaults, sources: {}, updated_at: null });
     }
 
     // Always merge stored data with defaults so missing nested objects are filled in
     const merged = mergeWithDefaults(rows[0].data, defaults as unknown as Record<string, unknown>);
     return Response.json({ ...rows[0], data: merged });
   } catch {
-    return Response.json({ id: null, tax_year: year, country, data: defaults, updated_at: null });
+    return Response.json({ id: null, tax_year: year, country, data: defaults, sources: {}, updated_at: null });
   }
 }
 
@@ -69,12 +69,12 @@ export async function POST(req: Request) {
   await syncTaxReturnsFromAccounts(year);
 
   const rows = await sql`
-    SELECT id, tax_year, country, data, updated_at
+    SELECT id, tax_year, country, data, sources, updated_at
     FROM tax_returns WHERE tax_year = ${year} AND country = ${country}
-  ` as { id: string; tax_year: number; country: string; data: Record<string, unknown>; updated_at: string }[];
+  ` as { id: string; tax_year: number; country: string; data: Record<string, unknown>; sources: Record<string, unknown>; updated_at: string }[];
 
   if (rows.length === 0) {
-    return Response.json({ id: null, tax_year: year, country, data: defaults, updated_at: null });
+    return Response.json({ id: null, tax_year: year, country, data: defaults, sources: {}, updated_at: null });
   }
   const merged = mergeWithDefaults(rows[0].data, defaults as unknown as Record<string, unknown>);
   return Response.json({ ...rows[0], data: merged });
