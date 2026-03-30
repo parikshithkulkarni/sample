@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, MessageCircle, FileText, DollarSign, Building2, Calculator, Sun, Moon } from 'lucide-react';
+import { Home, MessageCircle, FileText, DollarSign, Building2, Calculator, Sun, Moon, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/components/theme-provider';
 
@@ -13,6 +13,7 @@ const links = [
   { href: '/finance',   label: 'Finance', Icon: DollarSign },
   { href: '/rentals',   label: 'Rentals', Icon: Building2 },
   { href: '/taxes',     label: 'Taxes',   Icon: Calculator },
+  { href: '/audit',     label: 'Audit',   Icon: ShieldCheck },
 ];
 
 export default function Nav() {
