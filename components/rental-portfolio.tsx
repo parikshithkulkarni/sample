@@ -308,24 +308,40 @@ export default function RentalPortfolio() {
                 <p className="text-xs text-gray-400">Purchased {new Date(p.purchase_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</p>
               )}
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-3">
+                {p.market_value ? (
+                  <div>
+                    <p className="text-xs text-gray-400">Market Value</p>
+                    <p className="text-sm font-semibold text-gray-800">{fmt(Number(p.market_value))}</p>
+                  </div>
+                ) : null}
+                {p.mortgage_balance ? (
+                  <div>
+                    <p className="text-xs text-gray-400">Mortgage</p>
+                    <p className="text-sm font-semibold text-red-500">{fmt(Number(p.mortgage_balance))}</p>
+                  </div>
+                ) : null}
+                {p.market_value ? (
+                  <div>
+                    <p className="text-xs text-gray-400">Equity</p>
+                    <p className="text-sm font-semibold text-emerald-600">
+                      {fmt(Number(p.market_value) - Number(p.mortgage_balance ?? 0))}
+                    </p>
+                  </div>
+                ) : null}
                 <div>
                   <p className="text-xs text-gray-400">{selectedYear} Rent</p>
-                  <p className="text-sm font-semibold text-gray-800">{fmt(p.annualRent)}</p>
+                  <p className="text-sm font-semibold text-gray-800">{p.annualRent ? fmt(p.annualRent) : '—'}</p>
                 </div>
-                <div>
-                  <p className="text-xs text-gray-400">Cashflow</p>
-                  <p className={`text-sm font-semibold ${p.cashflow >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{fmt(p.cashflow)}</p>
-                </div>
-                {p.capRate !== null && (
+                {p.cashflow !== 0 && (
+                  <div>
+                    <p className="text-xs text-gray-400">Cashflow</p>
+                    <p className={`text-sm font-semibold ${p.cashflow >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{fmt(p.cashflow)}</p>
+                  </div>
+                )}
+                {p.capRate !== null && p.capRate !== 0 && (
                   <div>
                     <p className="text-xs text-gray-400">Cap Rate</p>
                     <p className="text-sm font-semibold text-gray-800">{p.capRate.toFixed(1)}%</p>
-                  </div>
-                )}
-                {p.equity !== null && (
-                  <div>
-                    <p className="text-xs text-gray-400">Equity</p>
-                    <p className="text-sm font-semibold text-emerald-600">{fmt(p.equity)}</p>
                   </div>
                 )}
               </div>
