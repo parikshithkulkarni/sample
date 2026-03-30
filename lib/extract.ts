@@ -68,19 +68,36 @@ export function buildExtractionPrompt(
   existingAccountsList: string,
   existingPropertiesList: string,
 ): string {
-  return `You are filling in a personal finance dashboard from a document. Extract EVERYTHING financially useful — be aggressive.
+  return `You are filling in a personal finance dashboard from a document. Extract financial data carefully.
 
 ## Finance page — Accounts
+Only create accounts for REAL financial accounts and holdings — things that hold a balance over time.
+
 Each account has:
-- name: descriptive string, e.g. "Chase Checking", "Fidelity 401k", "2024 Federal Tax Withheld"
+- name: descriptive string, e.g. "Chase Checking", "Fidelity 401k", "Apple RSU"
 - type: exactly "asset" or "liability"
-- category: descriptive snake_case string. Examples:
-    Assets: 401k, roth_ira, brokerage, rsu, espp, nso_options, iso_options, real_estate, savings, checking, money_market, cd, treasury, bond, crypto, hsa, 529_plan, life_insurance, annuity, pension, startup_equity, angel_investment, business_interest, commodity, collectibles, employment_income, tax_prepayment, other
+- category: MUST be one of the following:
+    Assets: checking, savings, money_market, cd, treasury, bond, brokerage, rsu, espp, iso_options, nso_options, startup_equity, angel_investment, crypto, commodity, collectibles, 401k, roth_ira, ira, pension, annuity, hsa, 529_plan, life_insurance, real_estate, other
     Liabilities: mortgage, heloc, auto_loan, credit_card, student_loan, personal_loan, tax_liability, margin_loan, other
-    Invent descriptive snake_case names for anything not listed.
-- balance: positive number in USD (no $ signs, no commas)
+- balance: current account balance as positive number in USD
 - currency: "USD" (or actual currency if foreign)
 - notes: optional short string for extra context
+
+DO NOT create accounts for:
+- Income records (W-2 wages, 1099 income, dividends received, interest earned, capital gains)
+- Tax withholdings or prepayments
+- One-time transactions or events
+- Historical income that isn't a current balance
+These belong on the Tax Returns page, not Finance.
+
+ONLY create an account if it represents something with a CURRENT BALANCE that someone would track:
+- ✅ "Fidelity 401k" with balance $450,000 (real account)
+- ✅ "Chase Checking" with balance $12,000 (real account)
+- ✅ "Home Mortgage" with balance $380,000 (real debt)
+- ❌ "2024 Wages - Google" (this is income, not an account)
+- ❌ "2024 Federal Tax Withheld" (this is a tax record, not an account)
+- ❌ "Capital Gains 2024" (this is a transaction, not an account)
+- ❌ "Interest Income 2024" (this is income, not an account)
 
 ## Rentals page — Properties
 Each property has:
@@ -115,18 +132,11 @@ Each rental_record has:
 - Lease agreements → rent_collected amount, property address
 - Schedule E data → rental income, expenses by category
 
-## Tax & Income Documents (W-2, 1099, pay stubs, K-1, Schedule K, etc.)
-These contain VERY useful data — extract all of it:
-- W-2 Box 1 wages → { name: "[Year] Wages - [Employer Name]", type: "asset", category: "employment_income", balance: <wages>, notes: "Gross wages per W-2" }
-- W-2 Box 2 federal tax withheld → { name: "[Year] Federal Tax Withheld", type: "asset", category: "tax_prepayment", balance: <amount> }
-- W-2 Box 12 Code D (401k) → { name: "[Employer] 401k", type: "asset", category: "401k" }
-- W-2 Box 12 Code W (HSA) → { name: "HSA", type: "asset", category: "hsa" }
-- 1099-INT → { category: "interest_income" }
-- 1099-DIV → { category: "dividend_income" }
-- 1099-R → { category: "retirement_distribution" }
-- 1099-NEC/MISC → { category: "self_employment_income" } (unless Box 1 Rents → use rental_records)
-- K-1 → { category: "business_interest" or "partnership_income" }
-
+## Tax & Income Documents
+For W-2, 1099, pay stubs, K-1 etc., extract ONLY actual account balances:
+- W-2 Box 12 Code D (401k) → create account: { name: "[Employer] 401k", type: "asset", category: "401k" }
+- W-2 Box 12 Code W (HSA) → create account: { name: "HSA", type: "asset", category: "hsa" }
+DO NOT create accounts for income amounts (wages, interest, dividends, capital gains) or tax withholdings.
 ## Already in the system (DO NOT duplicate these):
 Accounts already added:
 ${existingAccountsList}
