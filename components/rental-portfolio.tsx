@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Building2, TrendingUp, Trash2, GitMerge, TrendingDown, ArrowUpRight, ArrowDownRight, Home, Store } from 'lucide-react';
+import { Plus, Building2, TrendingUp, Trash2, GitMerge, TrendingDown, ArrowUpRight, ArrowDownRight, Home, Store, RefreshCw } from 'lucide-react';
 import { fmt } from '@/lib/utils';
 import { SkeletonCard } from '@/components/skeleton';
 
@@ -79,6 +79,7 @@ export default function RentalPortfolio() {
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [merging, setMerging] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [form, setForm] = useState({ address: '', purchase_price: '', purchase_date: '', market_value: '', mortgage_balance: '', notes: '' });
 
   // Detect duplicate groups
@@ -157,6 +158,18 @@ export default function RentalPortfolio() {
     }
   }
 
+  async function syncFromDocs() {
+    setSyncing(true);
+    try {
+      await fetch('/api/documents/extract-all', { method: 'POST' });
+      await fetch('/api/rentals/dedup', { method: 'POST' }).catch(() => {});
+      const res = await fetch('/api/rentals').then(r => r.json());
+      setProperties(Array.isArray(res) ? res : res?.data ?? []);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   async function addProperty(e: React.FormEvent) {
     e.preventDefault();
     const res = await fetch('/api/rentals', {
@@ -201,9 +214,19 @@ export default function RentalPortfolio() {
         >
           {years.map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
-        <button onClick={() => setAdding(!adding)} className="flex items-center gap-1 text-sm text-sky-600 font-medium">
-          <Plus size={16} /> Add Property
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={syncFromDocs}
+            disabled={syncing}
+            className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 hover:bg-sky-100 disabled:opacity-50 font-medium"
+          >
+            <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
+            {syncing ? 'Syncing…' : 'Sync'}
+          </button>
+          <button onClick={() => setAdding(!adding)} className="flex items-center gap-1 text-sm text-sky-600 font-medium">
+            <Plus size={16} /> Add
+          </button>
+        </div>
       </div>
 
       {/* Duplicate warning */}

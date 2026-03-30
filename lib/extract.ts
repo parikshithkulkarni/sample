@@ -217,12 +217,12 @@ CORRECT: 450000   WRONG: "450,000" or "$450k"
 }`;
 }
 
-export async function extractAndInsert(documentId: string): Promise<{ accounts: string[]; properties: string[]; rentalRecords: string[] }> {
+export async function extractAndInsert(documentId: string): Promise<{ accounts: string[]; properties: string[]; rentalRecords: string[]; taxData: string[] }> {
   // Sample chunks spread evenly across the whole document
   const allChunks = await sql`
     SELECT content, chunk_index FROM chunks WHERE document_id = ${documentId} ORDER BY chunk_index
   `;
-  if ((allChunks as unknown[]).length === 0) return { accounts: [], properties: [], rentalRecords: [] };
+  if ((allChunks as unknown[]).length === 0) return { accounts: [], properties: [], rentalRecords: [], taxData: [] };
 
   const [docRow] = await sql`SELECT name FROM documents WHERE id = ${documentId}`;
   const docName = (docRow as { name: string }).name;
@@ -254,7 +254,7 @@ export async function extractAndInsert(documentId: string): Promise<{ accounts: 
 
     const text = (msg.content[0] as { type: string; text: string }).text;
     const rawParsed = findAndParseJSON(text);
-    if (!rawParsed) return { accounts: [], properties: [], rentalRecords: [] };
+    if (!rawParsed) return { accounts: [], properties: [], rentalRecords: [], taxData: [] };
     const parsed = extractionOutputSchema.parse(rawParsed);
 
     const insertedAccounts: string[] = [];

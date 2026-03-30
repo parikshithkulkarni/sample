@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Send, Clock, TrendingUp, AlertTriangle, Building2, DollarSign, Calculator, FileText, MessageCircle } from 'lucide-react';
+import { Send, Clock, TrendingUp, AlertTriangle, Building2, DollarSign, Calculator, FileText, MessageCircle, RefreshCw } from 'lucide-react';
 import NetWorthChart from '@/components/net-worth-chart';
 import { SkeletonCard } from '@/components/skeleton';
 import { fmt, daysUntil } from '@/lib/utils';
@@ -38,14 +38,29 @@ export default function DashboardCards() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [quickQ, setQuickQ] = useState('');
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
 
-  useEffect(() => {
-    Promise.all([
+  async function loadData() {
+    await Promise.all([
       fetch('/api/deadlines').then((r) => r.json()).then((d) => setDeadlines(Array.isArray(d) ? d : d?.data ?? [])),
       fetch('/api/finance').then((r) => r.json()).then((a) => setAccounts(Array.isArray(a) ? a : a?.data ?? [])),
       fetch('/api/rentals').then((r) => r.json()).then((p) => setProperties(Array.isArray(p) ? p : p?.data ?? [])),
-    ]).finally(() => setLoading(false));
+    ]);
+  }
+
+  useEffect(() => {
+    loadData().finally(() => setLoading(false));
   }, []);
+
+  async function syncFromDocs() {
+    setSyncing(true);
+    try {
+      await fetch('/api/documents/extract-all', { method: 'POST' });
+      await loadData();
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   const assets = accounts.filter((a) => a.type === 'asset');
   const liabilities = accounts.filter((a) => a.type === 'liability');
@@ -92,6 +107,18 @@ export default function DashboardCards() {
           <Send size={18} />
         </button>
       </form>
+
+      {/* Sync from docs */}
+      <div className="flex justify-end">
+        <button
+          onClick={syncFromDocs}
+          disabled={syncing}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-900/40 disabled:opacity-50 font-medium"
+        >
+          <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
+          {syncing ? 'Syncing from docs…' : 'Sync from docs'}
+        </button>
+      </div>
 
       {/* Loading skeletons */}
       {loading && (

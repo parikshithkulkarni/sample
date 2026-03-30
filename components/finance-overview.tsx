@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Check, X, GitMerge, ChevronDown, ChevronUp, Landmark, TrendingUp, Wallet, Building2, Shield, Briefcase, CreditCard, PiggyBank, Coins } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, X, GitMerge, ChevronDown, ChevronUp, Landmark, TrendingUp, Wallet, Building2, Shield, Briefcase, CreditCard, PiggyBank, Coins, RefreshCw } from 'lucide-react';
 import { fmt } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import NetWorthChart from '@/components/net-worth-chart';
@@ -157,6 +157,7 @@ export default function FinanceOverview() {
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [merging, setMerging] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editBalance, setEditBalance] = useState('');
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
@@ -271,6 +272,21 @@ export default function FinanceOverview() {
       addToast('Failed to merge duplicates', 'error');
     } finally {
       setMerging(false);
+    }
+  }
+
+  async function syncFromDocs() {
+    setSyncing(true);
+    try {
+      await fetch('/api/documents/extract-all', { method: 'POST' });
+      await fetch('/api/finance/cleanup', { method: 'POST' }).catch(() => {});
+      const res = await fetch('/api/finance').then(r => r.json());
+      setAccounts(Array.isArray(res) ? res : res?.data ?? []);
+      addToast('Synced from documents', 'success');
+    } catch {
+      addToast('Sync failed', 'error');
+    } finally {
+      setSyncing(false);
     }
   }
 
@@ -389,6 +405,18 @@ export default function FinanceOverview() {
           </button>
         </div>
       )}
+
+      {/* Sync button */}
+      <div className="flex justify-end">
+        <button
+          onClick={syncFromDocs}
+          disabled={syncing}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-900/40 disabled:opacity-50 font-medium"
+        >
+          <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
+          {syncing ? 'Syncing…' : 'Sync from docs'}
+        </button>
+      </div>
 
       {/* Net worth card */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">
