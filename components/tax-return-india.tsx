@@ -1,6 +1,5 @@
 'use client';
 
-import { fmt } from '@/lib/utils';
 import type { IndiaData, ResidentialStatus, TaxRegime } from '@/lib/tax-data';
 import { calcIndia } from '@/lib/tax-data';
 
@@ -54,8 +53,8 @@ function fyLabel(year: number) {
 }
 
 export default function TaxReturnIndia({ taxYear, data, onChange }: Props) {
+  if (!data?.income) return null;
   const calc = calcIndia(data, taxYear);
-  void fmt; // imported for potential future use
 
   function patch<K extends keyof IndiaData>(key: K, val: IndiaData[K]) {
     onChange({ [key]: val } as Partial<IndiaData>);

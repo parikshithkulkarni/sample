@@ -43,10 +43,13 @@ export default function TaxReturnsPage() {
     setLoading(true);
     try {
       const res = await fetch(`/api/tax-returns?year=${y}&country=${c}`);
-      const data = await res.json() as TaxReturn;
-      setTaxReturn(data);
+      if (!res.ok) throw new Error(`API ${res.status}`);
+      const json = await res.json() as TaxReturn;
+      // Validate that the response has a proper data object
+      if (!json?.data || typeof json.data !== 'object') throw new Error('Invalid response shape');
+      setTaxReturn(json);
     } catch {
-      setTaxReturn({ id: null, tax_year: y, country: c, data: c === 'US' ? US_DEFAULT : INDIA_DEFAULT, updated_at: null });
+      setTaxReturn({ id: null, tax_year: y, country: c, data: c === 'US' ? { ...US_DEFAULT } : { ...INDIA_DEFAULT }, updated_at: null });
     } finally {
       setLoading(false);
     }

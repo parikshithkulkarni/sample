@@ -19,24 +19,20 @@ export async function GET(req: Request) {
     await runMigrations();
   } catch { /* non-fatal */ }
 
-  const rows = await sql`
-    SELECT id, tax_year, country, data, updated_at
-    FROM tax_returns
-    WHERE tax_year = ${year} AND country = ${country}
-  ` as { id: string; tax_year: number; country: string; data: Record<string, unknown>; updated_at: string }[];
+  try {
+    const rows = await sql`
+      SELECT id, tax_year, country, data, updated_at
+      FROM tax_returns
+      WHERE tax_year = ${year} AND country = ${country}
+    ` as { id: string; tax_year: number; country: string; data: Record<string, unknown>; updated_at: string }[];
 
-  if (rows.length === 0) {
-    // Return empty default — do not write yet
-    return Response.json({
-      id: null,
-      tax_year: year,
-      country,
-      data: country === 'US' ? US_DEFAULT : INDIA_DEFAULT,
-      updated_at: null,
-    });
+    return Response.json(
+      rows.length > 0 ? rows[0] : { id: null, tax_year: year, country, data: country === 'US' ? US_DEFAULT : INDIA_DEFAULT, updated_at: null }
+    );
+  } catch {
+    // DB error — return default so the client can still render
+    return Response.json({ id: null, tax_year: year, country, data: country === 'US' ? US_DEFAULT : INDIA_DEFAULT, updated_at: null });
   }
-
-  return Response.json(rows[0]);
 }
 
 // POST /api/tax-returns — create/sync for a given year+country
