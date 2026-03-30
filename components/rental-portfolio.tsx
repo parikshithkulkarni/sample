@@ -2,8 +2,17 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Building2, TrendingUp, Trash2 } from 'lucide-react';
+import { Plus, Building2, TrendingUp, Trash2, GitMerge } from 'lucide-react';
 import { fmt } from '@/lib/utils';
+
+function normalizeAddr(addr: string): string {
+  return addr
+    .toLowerCase()
+    .replace(/\bstreet\b/g, 'st').replace(/\bavenue\b/g, 'ave').replace(/\bboulevard\b/g, 'blvd')
+    .replace(/\bdrive\b/g, 'dr').replace(/\broad\b/g, 'rd').replace(/\bcourt\b/g, 'ct')
+    .replace(/\blane\b/g, 'ln').replace(/\bplace\b/g, 'pl').replace(/\bcircle\b/g, 'cir')
+    .replace(/[,\.#]/g, ' ').replace(/\s+/g, ' ').trim();
+}
 
 interface Property {
   id: string;
@@ -41,7 +50,19 @@ export default function RentalPortfolio() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [merging, setMerging] = useState(false);
   const [form, setForm] = useState({ address: '', purchase_price: '', purchase_date: '', market_value: '', mortgage_balance: '', notes: '' });
+
+  // Detect duplicate groups (same normalized address)
+  const dupGroups: Property[][] = (() => {
+    const groups: Record<string, Property[]> = {};
+    for (const p of properties) {
+      const key = normalizeAddr(p.address);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(p);
+    }
+    return Object.values(groups).filter(g => g.length > 1);
+  })();
 
   useEffect(() => {
     fetch('/api/rentals').then((r) => r.json()).then(setProperties);
@@ -85,6 +106,26 @@ export default function RentalPortfolio() {
     setDeleting(null);
   }
 
+  async function mergeDuplicates() {
+    setMerging(true);
+    try {
+      for (const group of dupGroups) {
+        // Keep the oldest (first created) and merge the rest into it
+        const keepId = group[0].id;
+        const deleteIds = group.slice(1).map(p => p.id);
+        await fetch('/api/rentals/merge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keepId, deleteIds }),
+        });
+      }
+      const updated = await fetch('/api/rentals').then(r => r.json()) as Property[];
+      setProperties(updated);
+    } finally {
+      setMerging(false);
+    }
+  }
+
   async function addProperty(e: React.FormEvent) {
     e.preventDefault();
     const res = await fetch('/api/rentals', {
@@ -126,6 +167,26 @@ export default function RentalPortfolio() {
           <Plus size={16} /> Add Property
         </button>
       </div>
+
+      {/* Duplicate warning */}
+      {dupGroups.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-amber-800">Duplicate properties detected</p>
+            <p className="text-xs text-amber-600 mt-0.5">
+              {dupGroups.map(g => g[0].address.split(',')[0]).join(', ')} — {dupGroups.reduce((s, g) => s + g.length - 1, 0)} duplicate(s) will be merged
+            </p>
+          </div>
+          <button
+            onClick={mergeDuplicates}
+            disabled={merging}
+            className="shrink-0 flex items-center gap-1 text-xs px-3 py-1.5 bg-amber-600 text-white rounded-xl font-medium disabled:opacity-50"
+          >
+            <GitMerge size={13} />
+            {merging ? 'Merging…' : 'Merge'}
+          </button>
+        </div>
+      )}
 
       {/* Portfolio totals */}
       {stats.length > 0 && (

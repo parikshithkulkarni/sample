@@ -4,6 +4,17 @@ import Anthropic from '@anthropic-ai/sdk';
 const anthropic = new Anthropic();
 
 // Robustly parse a value Claude might return as "$450,000" / "450k" / 450000 / null
+// Normalize address for dedup: lowercase, strip trailing punctuation, collapse whitespace,
+// abbreviate common suffixes so "123 Main Street" == "123 main st"
+export function normalizeAddress(addr: string): string {
+  return addr
+    .toLowerCase()
+    .replace(/\bstreet\b/g, 'st').replace(/\bavenue\b/g, 'ave').replace(/\bboulevard\b/g, 'blvd')
+    .replace(/\bdrive\b/g, 'dr').replace(/\broad\b/g, 'rd').replace(/\bcourt\b/g, 'ct')
+    .replace(/\blane\b/g, 'ln').replace(/\bplace\b/g, 'pl').replace(/\bcircle\b/g, 'cir')
+    .replace(/[,\.#]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 export function parseNum(v: unknown): number | null {
   if (v == null) return null;
   if (typeof v === 'number') return isNaN(v) ? null : v;
@@ -148,7 +159,9 @@ CORRECT: 450000   WRONG: "450,000" or "$450k"
       const purchase_price   = parseNum(prop.purchase_price);
       const market_value     = parseNum(prop.market_value);
       const mortgage_balance = parseNum(prop.mortgage_balance);
-      const existing = await sql`SELECT id, market_value, mortgage_balance, purchase_price FROM properties WHERE lower(address) = lower(${prop.address})` as { id: string; market_value: number | null; mortgage_balance: number | null; purchase_price: number | null }[];
+      const normAddr = normalizeAddress(prop.address);
+      const allProps = await sql`SELECT id, address, market_value, mortgage_balance, purchase_price FROM properties` as { id: string; address: string; market_value: number | null; mortgage_balance: number | null; purchase_price: number | null }[];
+      const existing = allProps.filter(p => normalizeAddress(p.address) === normAddr);
       if (existing.length > 0) {
         // Update only fields that were null/zero and now have real values
         const row = existing[0];

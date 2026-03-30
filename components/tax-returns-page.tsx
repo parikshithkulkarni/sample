@@ -4,8 +4,8 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { RefreshCw, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import TaxReturnUS from '@/components/tax-return-us';
 import TaxReturnIndia from '@/components/tax-return-india';
-import { US_DEFAULT, INDIA_DEFAULT } from '@/lib/tax-returns';
-import type { UsData, IndiaData } from '@/lib/tax-returns';
+import { US_DEFAULT, INDIA_DEFAULT } from '@/lib/tax-data';
+import type { UsData, IndiaData } from '@/lib/tax-data';
 
 type Country = 'US' | 'India';
 

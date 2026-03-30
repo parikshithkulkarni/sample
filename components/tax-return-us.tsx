@@ -2,8 +2,8 @@
 
 import { useEffect, useRef } from 'react';
 import { fmt } from '@/lib/utils';
-import type { UsData, FilingStatus } from '@/lib/tax-returns';
-import { calcUS } from '@/lib/tax-returns';
+import type { UsData, FilingStatus } from '@/lib/tax-data';
+import { calcUS } from '@/lib/tax-data';
 
 interface Props {
   taxYear: number;

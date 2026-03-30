@@ -1,8 +1,8 @@
 'use client';
 
 import { fmt } from '@/lib/utils';
-import type { IndiaData, ResidentialStatus, TaxRegime } from '@/lib/tax-returns';
-import { calcIndia } from '@/lib/tax-returns';
+import type { IndiaData, ResidentialStatus, TaxRegime } from '@/lib/tax-data';
+import { calcIndia } from '@/lib/tax-data';
 
 interface Props {
   taxYear: number;
