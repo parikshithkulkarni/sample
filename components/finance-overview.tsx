@@ -5,6 +5,7 @@ import { Plus, Pencil, Trash2, Check, X } from 'lucide-react';
 import { fmt } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import NetWorthChart from '@/components/net-worth-chart';
+import FinanceBreakdownChart from '@/components/finance-breakdown-chart';
 
 interface Account {
   id: string;
@@ -17,8 +18,8 @@ interface Account {
   updated_at: string;
 }
 
-const ASSET_CATEGORIES = ['401k', 'roth_ira', 'brokerage', 'rsu', 'espp', 'real_estate', 'savings', 'checking', 'crypto', 'other'];
-const LIABILITY_CATEGORIES = ['mortgage', 'auto_loan', 'credit_card', 'student_loan', 'other'];
+const ASSET_SUGGESTIONS = ['401k', 'roth_ira', 'brokerage', 'rsu', 'espp', 'nso_options', 'iso_options', 'real_estate', 'savings', 'checking', 'money_market', 'cd', 'treasury', 'bond', 'crypto', 'hsa', '529_plan', 'life_insurance', 'annuity', 'pension', 'startup_equity', 'angel_investment', 'business_interest', 'commodity', 'collectibles', 'other'];
+const LIABILITY_SUGGESTIONS = ['mortgage', 'heloc', 'auto_loan', 'credit_card', 'student_loan', 'personal_loan', 'tax_liability', 'margin_loan', 'other'];
 
 export default function FinanceOverview() {
   const router = useRouter();
@@ -26,7 +27,7 @@ export default function FinanceOverview() {
   const [adding, setAdding] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editBalance, setEditBalance] = useState('');
-  const [form, setForm] = useState({ name: '', type: 'asset' as 'asset' | 'liability', category: '401k', balance: '', currency: 'USD', notes: '' });
+  const [form, setForm] = useState({ name: '', type: 'asset' as 'asset' | 'liability', category: '', balance: '', currency: 'USD', notes: '' });
 
   useEffect(() => {
     fetch('/api/finance').then((r) => r.json()).then(setAccounts);
@@ -47,7 +48,7 @@ export default function FinanceOverview() {
     });
     const acc = await res.json() as Account;
     setAccounts((prev) => [...prev, acc]);
-    setForm({ name: '', type: 'asset', category: '401k', balance: '', currency: 'USD', notes: '' });
+    setForm({ name: '', type: 'asset', category: '', balance: '', currency: 'USD', notes: '' });
     setAdding(false);
   }
 
@@ -117,6 +118,9 @@ export default function FinanceOverview() {
       {/* Net worth trend chart */}
       <NetWorthChart />
 
+      {/* Asset/Liability breakdown donut */}
+      <FinanceBreakdownChart />
+
       {/* Assets */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
         <h3 className="text-sm font-semibold text-gray-700 mb-3">Assets</h3>
@@ -153,11 +157,18 @@ export default function FinanceOverview() {
               <option value="asset">Asset</option>
               <option value="liability">Liability</option>
             </select>
-            <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500">
-              {(form.type === 'asset' ? ASSET_CATEGORIES : LIABILITY_CATEGORIES).map((c) => (
-                <option key={c} value={c}>{c.replace('_', ' ')}</option>
+            <input
+              list="category-suggestions"
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
+              placeholder={form.type === 'asset' ? 'Category (e.g. 401k, iso_options…)' : 'Category (e.g. mortgage, heloc…)'}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+            />
+            <datalist id="category-suggestions">
+              {(form.type === 'asset' ? ASSET_SUGGESTIONS : LIABILITY_SUGGESTIONS).map((c) => (
+                <option key={c} value={c} />
               ))}
-            </select>
+            </datalist>
             <input required type="number" value={form.balance} onChange={(e) => setForm({ ...form, balance: e.target.value })} placeholder="Balance ($)" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
             <button type="submit" className="w-full bg-sky-600 text-white rounded-xl py-2.5 text-sm font-medium">Save Account</button>
           </form>

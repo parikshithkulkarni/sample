@@ -110,14 +110,11 @@ async function loadMentionedDocs(docIds: string[]): Promise<string> {
 }
 
 // ── Dashboard tools ───────────────────────────────────────────────────────────
-const ASSET_CATS     = new Set(['401k','roth_ira','brokerage','rsu','espp','real_estate','savings','checking','crypto','other']);
-const LIABILITY_CATS = new Set(['mortgage','auto_loan','credit_card','student_loan','other']);
-
 async function saveAccounts(accounts: { name: string; type: string; category: string; balance: number; currency?: string; notes?: string }[]) {
   const saved: string[] = [];
   for (const acct of accounts) {
     if (!acct.name || !acct.type) continue;
-    const category = (acct.type === 'asset' ? ASSET_CATS : LIABILITY_CATS).has(acct.category) ? acct.category : 'other';
+    const category = acct.category ? acct.category.toLowerCase().replace(/[^a-z0-9_]/g, '_') || 'other' : 'other';
     const balance  = isNaN(acct.balance) ? 0 : acct.balance;
     const existing = await sql`SELECT id FROM accounts WHERE lower(name) = lower(${acct.name})` as { id: string }[];
     if (existing.length > 0) {

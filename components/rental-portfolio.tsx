@@ -145,6 +145,39 @@ export default function RentalPortfolio() {
         </div>
       )}
 
+      {/* NOI by property bar chart */}
+      {stats.length > 1 && (
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">NOI by Property ({selectedYear})</h3>
+          {(() => {
+            const maxAbs = Math.max(...stats.map((p) => Math.abs(p.noi)), 1);
+            return (
+              <div className="space-y-2">
+                {stats.map((p) => {
+                  const pct = Math.abs(p.noi) / maxAbs;
+                  const isPos = p.noi >= 0;
+                  const shortAddr = p.address.split(',')[0];
+                  return (
+                    <div key={p.id} className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 w-24 truncate shrink-0">{shortAddr}</span>
+                      <div className="flex-1 flex items-center">
+                        <div
+                          className={`h-5 rounded-r-md transition-all ${isPos ? 'bg-emerald-400' : 'bg-red-400'}`}
+                          style={{ width: `${pct * 100}%` }}
+                        />
+                      </div>
+                      <span className={`text-xs font-medium w-20 text-right shrink-0 ${isPos ? 'text-emerald-600' : 'text-red-500'}`}>
+                        {fmt(p.noi)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
       {/* Ask Claude */}
       {stats.length > 0 && (
         <button

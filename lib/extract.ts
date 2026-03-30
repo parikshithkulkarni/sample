@@ -46,9 +46,10 @@ export async function extractAndInsert(documentId: string): Promise<{ accounts: 
 Each account has these exact fields:
 - name: descriptive string, e.g. "Chase Checking", "Fidelity 401k", "Tesla RSUs", "Amex Gold"
 - type: MUST be exactly "asset" or "liability"
-- category:
-    If asset: MUST be one of: 401k | roth_ira | brokerage | rsu | espp | real_estate | savings | checking | crypto | other
-    If liability: MUST be one of: mortgage | auto_loan | credit_card | student_loan | other
+- category: a descriptive snake_case string. Use specific types, e.g.:
+    Assets: 401k, roth_ira, brokerage, rsu, espp, nso_options, iso_options, real_estate, savings, checking, money_market, cd, treasury, bond, crypto, hsa, 529_plan, life_insurance, annuity, pension, startup_equity, angel_investment, business_interest, commodity, collectibles, other
+    Liabilities: mortgage, heloc, auto_loan, credit_card, student_loan, personal_loan, tax_liability, margin_loan, other
+    Use the most specific category that fits. Do NOT limit yourself to this list — invent descriptive snake_case names for anything not listed.
 - balance: positive number in USD (no $ signs, no commas)
 - currency: "USD" (or actual currency if foreign)
 - notes: optional short string for extra context
@@ -107,17 +108,12 @@ ALL numeric fields must be plain JSON numbers — integer or decimal, no quotes,
       properties: { address: string; purchase_price?: number; purchase_date?: string; market_value?: number; mortgage_balance?: number; notes?: string }[];
     };
 
-    // Valid category sets matching the frontend exactly
-    const assetCategories = new Set(['401k','roth_ira','brokerage','rsu','espp','real_estate','savings','checking','crypto','other']);
-    const liabilityCategories = new Set(['mortgage','auto_loan','credit_card','student_loan','other']);
-
     const insertedAccounts: string[] = [];
     const insertedProperties: string[] = [];
 
     for (const acct of parsed.accounts ?? []) {
       if (!acct.name || !acct.type || !acct.category) continue;
-      const validCats = acct.type === 'asset' ? assetCategories : liabilityCategories;
-      const category = validCats.has(acct.category) ? acct.category : 'other';
+      const category = acct.category.toLowerCase().replace(/[^a-z0-9_]/g, '_') || 'other';
       const balance = parseNum(acct.balance) ?? 0;
       const existing = await sql`SELECT id FROM accounts WHERE lower(name) = lower(${acct.name})`;
       if ((existing as unknown[]).length > 0) continue;

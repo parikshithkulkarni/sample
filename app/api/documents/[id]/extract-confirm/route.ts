@@ -22,16 +22,12 @@ export async function POST(
     properties: { address: string; purchase_price: number | null; purchase_date: string | null; market_value: number | null; mortgage_balance: number | null; monthly_rent: number | null; notes?: string }[];
   };
 
-  const assetCategories = new Set(['401k','roth_ira','brokerage','rsu','espp','real_estate','savings','checking','crypto','other']);
-  const liabilityCategories = new Set(['mortgage','auto_loan','credit_card','student_loan','other']);
-
   const savedAccounts: string[] = [];
   const savedProperties: string[] = [];
 
   for (const acct of accounts ?? []) {
     if (!acct.name || !acct.type) continue;
-    const validCats = acct.type === 'asset' ? assetCategories : liabilityCategories;
-    const category = validCats.has(acct.category) ? acct.category : 'other';
+    const category = acct.category ? acct.category.toLowerCase().replace(/[^a-z0-9_]/g, '_') || 'other' : 'other';
     const balance = typeof acct.balance === 'number' && !isNaN(acct.balance) ? acct.balance : 0;
 
     const existing = await sql`SELECT id FROM accounts WHERE lower(name) = lower(${acct.name})`;

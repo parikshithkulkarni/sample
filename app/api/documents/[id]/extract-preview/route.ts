@@ -42,8 +42,10 @@ export async function POST(
 Each account has:
 - name: e.g. "Chase Checking", "Fidelity 401k", "Amex Gold"
 - type: exactly "asset" or "liability"
-- category (asset): 401k | roth_ira | brokerage | rsu | espp | real_estate | savings | checking | crypto | other
-- category (liability): mortgage | auto_loan | credit_card | student_loan | other
+- category: descriptive snake_case string matching the account type. Examples:
+    Assets: 401k, roth_ira, brokerage, rsu, espp, nso_options, iso_options, real_estate, savings, checking, money_market, cd, treasury, bond, crypto, hsa, 529_plan, life_insurance, annuity, pension, startup_equity, angel_investment, business_interest, commodity, collectibles, other
+    Liabilities: mortgage, heloc, auto_loan, credit_card, student_loan, personal_loan, tax_liability, margin_loan, other
+    Use the most specific fit; invent descriptive snake_case names for anything not listed.
 - balance: number (USD)
 - currency: "USD"
 - notes: optional
