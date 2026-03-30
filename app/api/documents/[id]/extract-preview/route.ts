@@ -83,10 +83,12 @@ Return ONLY valid JSON:
       messages: [{ role: 'user', content: prompt }],
     });
 
-    const raw = (msg.content[0] as { type: string; text: string }).text.trim()
-      .replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '');
-
-    const parsed = JSON.parse(raw);
+    const text = (msg.content[0] as { type: string; text: string }).text;
+    // Extract the JSON object even if Claude prefixes with prose
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start === -1 || end === -1) throw new Error('No JSON object found in response');
+    const parsed = JSON.parse(text.slice(start, end + 1));
     return Response.json(parsed);
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : String(e), accounts: [], properties: [] }, { status: 500 });

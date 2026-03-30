@@ -100,10 +100,12 @@ ALL numeric fields must be plain JSON numbers — integer or decimal, no quotes,
       messages: [{ role: 'user', content: prompt }],
     });
 
-    const raw = (msg.content[0] as { type: string; text: string }).text.trim()
-      .replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '');
+    const text = (msg.content[0] as { type: string; text: string }).text;
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start === -1 || end === -1) return { accounts: [], properties: [] };
 
-    const parsed = JSON.parse(raw) as {
+    const parsed = JSON.parse(text.slice(start, end + 1)) as {
       accounts: { name: string; type: string; category: string; balance: number; currency: string; notes?: string }[];
       properties: { address: string; purchase_price?: number; purchase_date?: string; market_value?: number; mortgage_balance?: number; notes?: string }[];
     };
