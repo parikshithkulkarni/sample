@@ -40,28 +40,43 @@ export async function extractAndInsert(documentId: string): Promise<{ accounts: 
     .map(p => `  - "${p.address}"`)
     .join('\n') || '  (none yet)';
 
-  const prompt = `You are filling in a personal finance dashboard from a document. Here is exactly how the dashboard is structured:
+  const prompt = `You are filling in a personal finance dashboard from a document. Extract EVERYTHING financially useful — be aggressive.
 
 ## Finance page — Accounts
-Each account has these exact fields:
-- name: descriptive string, e.g. "Chase Checking", "Fidelity 401k", "Tesla RSUs", "Amex Gold"
-- type: MUST be exactly "asset" or "liability"
-- category: a descriptive snake_case string. Use specific types, e.g.:
-    Assets: 401k, roth_ira, brokerage, rsu, espp, nso_options, iso_options, real_estate, savings, checking, money_market, cd, treasury, bond, crypto, hsa, 529_plan, life_insurance, annuity, pension, startup_equity, angel_investment, business_interest, commodity, collectibles, other
+Each account has:
+- name: descriptive string, e.g. "Chase Checking", "Fidelity 401k", "2024 Federal Tax Withheld"
+- type: exactly "asset" or "liability"
+- category: descriptive snake_case string. Examples:
+    Assets: 401k, roth_ira, brokerage, rsu, espp, nso_options, iso_options, real_estate, savings, checking, money_market, cd, treasury, bond, crypto, hsa, 529_plan, life_insurance, annuity, pension, startup_equity, angel_investment, business_interest, commodity, collectibles, employment_income, tax_prepayment, other
     Liabilities: mortgage, heloc, auto_loan, credit_card, student_loan, personal_loan, tax_liability, margin_loan, other
-    Use the most specific category that fits. Do NOT limit yourself to this list — invent descriptive snake_case names for anything not listed.
+    Invent descriptive snake_case names for anything not listed.
 - balance: positive number in USD (no $ signs, no commas)
 - currency: "USD" (or actual currency if foreign)
 - notes: optional short string for extra context
 
 ## Rentals page — Properties
-Each property has these exact fields:
+Each property has:
 - address: full street address string
 - purchase_price: number or null
 - purchase_date: "YYYY-MM-DD" string or null
 - market_value: current estimated value as number or null
 - mortgage_balance: remaining mortgage owed as number or null
 - notes: optional string
+
+## Tax & Income Documents (W-2, 1099, pay stubs, K-1, Schedule K, etc.)
+These contain VERY useful data — extract all of it:
+- W-2 Box 1 wages → { name: "[Year] Wages - [Employer Name]", type: "asset", category: "employment_income", balance: <wages>, notes: "Gross wages per W-2" }
+- W-2 Box 2 federal tax withheld → { name: "[Year] Federal Tax Withheld", type: "asset", category: "tax_prepayment", balance: <amount>, notes: "Federal income tax withheld" }
+- W-2 Box 12 Code D (traditional 401k) → { name: "[Employer] 401k", type: "asset", category: "401k", balance: <contribution>, notes: "401k contribution per W-2 Box 12D" }
+- W-2 Box 12 Code W (HSA) → { name: "HSA", type: "asset", category: "hsa", balance: <amount> }
+- W-2 Box 12 Code V (ISO exercise income) → category: "iso_options"
+- W-2 Box 17 state tax withheld → { name: "[Year] [State] Tax Withheld", type: "asset", category: "tax_prepayment" }
+- 1099-INT: interest income → { name: "[Bank] Interest Income [Year]", type: "asset", category: "interest_income" }
+- 1099-DIV: dividends → { name: "[Broker] Dividends [Year]", type: "asset", category: "dividend_income" }
+- 1099-R: retirement distributions → category: "retirement_distribution"
+- 1099-NEC/MISC: self-employment income → category: "self_employment_income"
+- K-1: partnership/S-corp income → category: "business_interest" or "partnership_income"
+- Pay stub: gross pay → category: "employment_income"; 401k deduction → category: "401k"
 
 ## Already in the system (DO NOT duplicate these):
 Accounts already added:
@@ -76,13 +91,12 @@ Name: "${docName}"
 ${text}
 ---
 
-Extract every account and property you can find or reasonably infer from this document.
-Be aggressive — include partial data (use null for unknown fields).
+Extract every financial item. Be aggressive — include partial data (use null for unknown fields).
 Skip anything already in the system above.
 
 Return ONLY valid JSON (no markdown fences, no explanation).
 ALL numeric fields must be plain JSON numbers — integer or decimal, no quotes, no $ signs, no commas.
-  CORRECT: 450000   WRONG: "450,000" or "$450k" or "450000"
+CORRECT: 450000   WRONG: "450,000" or "$450k"
 
 {
   "accounts": [

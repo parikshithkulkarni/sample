@@ -56,8 +56,8 @@ const TAG_COLORS = [
   'bg-rose-100 text-rose-700',
 ];
 
-const ASSET_CATS = ['401k','roth_ira','brokerage','rsu','espp','real_estate','savings','checking','crypto','other'];
-const LIABILITY_CATS = ['mortgage','auto_loan','credit_card','student_loan','other'];
+const ASSET_SUGGESTIONS = ['401k','roth_ira','brokerage','rsu','espp','nso_options','iso_options','real_estate','savings','checking','money_market','cd','treasury','bond','crypto','hsa','529_plan','life_insurance','annuity','pension','startup_equity','business_interest','employment_income','tax_prepayment','interest_income','dividend_income','other'];
+const LIABILITY_SUGGESTIONS = ['mortgage','heloc','auto_loan','credit_card','student_loan','personal_loan','tax_liability','margin_loan','other'];
 
 function numField(
   label: string,
@@ -308,15 +308,18 @@ export default function DocumentList({ refresh = 0 }: Props) {
                         </div>
                         <div className="flex items-center gap-1">
                           <span className="text-xs text-gray-400 w-24 shrink-0">Category</span>
-                          <select
+                          <input
+                            list="review-category-suggestions"
                             value={acct.category}
                             onChange={(e) => updateAccount(idx, { category: e.target.value })}
-                            className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none"
-                          >
-                            {(acct.type === 'asset' ? ASSET_CATS : LIABILITY_CATS).map((c) => (
-                              <option key={c} value={c}>{c}</option>
+                            placeholder="e.g. 401k, iso_options…"
+                            className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-sky-400"
+                          />
+                          <datalist id="review-category-suggestions">
+                            {(acct.type === 'asset' ? ASSET_SUGGESTIONS : LIABILITY_SUGGESTIONS).map((c) => (
+                              <option key={c} value={c} />
                             ))}
-                          </select>
+                          </datalist>
                         </div>
                         {numField('Balance ($)', acct.balance, (v) => updateAccount(idx, { balance: v }))}
                         {strField('Notes', acct.notes, (v) => updateAccount(idx, { notes: v }))}
