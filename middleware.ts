@@ -1,7 +1,6 @@
 import { withAuth } from 'next-auth/middleware';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { getSecret } from '@/lib/auth';
 
 // Security headers applied to all responses
 const SECURITY_HEADERS: Record<string, string> = {
@@ -23,9 +22,15 @@ function addSecurityHeaders(response: NextResponse) {
   return response;
 }
 
-const authMiddleware = withAuth({
-  secret: getSecret(),
-});
+// Read secret from env directly (Edge-compatible — no Node.js crypto).
+// getSecret() in lib/auth.ts uses scryptSync which is not available in Edge runtime.
+const secret =
+  process.env.NEXTAUTH_SECRET ??
+  process.env.ADMIN_PASSWORD ??
+  process.env.ANTHROPIC_API_KEY ??
+  '';
+
+const authMiddleware = withAuth({ secret });
 
 export default async function middleware(req: NextRequest) {
   // Apply security headers to all responses
@@ -37,10 +42,8 @@ export default async function middleware(req: NextRequest) {
   const isProtectedPage = !/^\/(?:api|setup|login|_next\/static|_next\/image|favicon\.ico)/.test(pathname);
 
   if (isProtectedPage) {
-    // Run NextAuth middleware for protected pages
-    const authResponse = await (authMiddleware as Function)(req, { } as any);
+    const authResponse = await (authMiddleware as Function)(req, {} as any);
     if (authResponse) {
-      // Copy security headers to auth response
       for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
         authResponse.headers.set(key, value);
       }
