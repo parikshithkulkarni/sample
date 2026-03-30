@@ -2,22 +2,20 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Building2, TrendingUp, Trash2, GitMerge } from 'lucide-react';
+import { Plus, Building2, TrendingUp, Trash2, GitMerge, TrendingDown, ArrowUpRight, ArrowDownRight, Home, Store } from 'lucide-react';
 import { fmt } from '@/lib/utils';
 import { SkeletonCard } from '@/components/skeleton';
 
 function normalizeAddr(addr: string): string {
   return addr
     .toLowerCase()
-    .replace(/\b\d{5}(-\d{4})?\b/g, '')       // strip zip codes
+    .replace(/\b\d{5}(-\d{4})?\b/g, '')
     .replace(/\bstreet\b/g, 'st').replace(/\bavenue\b/g, 'ave').replace(/\bboulevard\b/g, 'blvd')
     .replace(/\bdrive\b/g, 'dr').replace(/\broad\b/g, 'rd').replace(/\bcourt\b/g, 'ct')
     .replace(/\blane\b/g, 'ln').replace(/\bplace\b/g, 'pl').replace(/\bcircle\b/g, 'cir')
     .replace(/[,\.#]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-// Two addresses are duplicates if their normalized forms match OR one starts with the other
-// (handles cases where one has city/state appended and the other doesn't)
 function addrMatch(a: string, b: string): boolean {
   const na = normalizeAddr(a);
   const nb = normalizeAddr(b);
@@ -53,6 +51,15 @@ interface PropertyStats extends Property {
   equity: number | null;
 }
 
+// Categorize properties by financial performance
+function getPerformanceTag(p: PropertyStats): { label: string; color: string; icon: typeof TrendingUp } {
+  if (p.annualRent === 0 && p.noi === 0) return { label: 'No Data', color: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400', icon: Building2 };
+  if (p.cashflow > 0 && p.capRate !== null && p.capRate >= 6) return { label: 'Strong', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', icon: ArrowUpRight };
+  if (p.cashflow > 0) return { label: 'Positive', color: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400', icon: TrendingUp };
+  if (p.cashflow === 0) return { label: 'Break-even', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', icon: TrendingDown };
+  return { label: 'Negative', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400', icon: ArrowDownRight };
+}
+
 export default function RentalPortfolio() {
   const router = useRouter();
   const [properties, setProperties] = useState<Property[]>([]);
@@ -64,7 +71,7 @@ export default function RentalPortfolio() {
   const [merging, setMerging] = useState(false);
   const [form, setForm] = useState({ address: '', purchase_price: '', purchase_date: '', market_value: '', mortgage_balance: '', notes: '' });
 
-  // Detect duplicate groups using address matching (handles abbreviation + zip differences)
+  // Detect duplicate groups
   const dupGroups: Property[][] = (() => {
     const visited = new Set<string>();
     const groups: Property[][] = [];
@@ -77,10 +84,7 @@ export default function RentalPortfolio() {
           visited.add(properties[j].id);
         }
       }
-      if (group.length > 1) {
-        visited.add(properties[i].id);
-        groups.push(group);
-      }
+      if (group.length > 1) { visited.add(properties[i].id); groups.push(group); }
     }
     return groups;
   })();
@@ -95,7 +99,6 @@ export default function RentalPortfolio() {
         properties.map(async (p) => {
           const res = await fetch(`/api/rentals/${p.id}/records?year=${selectedYear}`);
           const records: RentalRecord[] = await res.json();
-
           const annualRent = records.reduce((s, r) => s + Number(r.rent_collected), 0);
           const annualMortgage = records.reduce((s, r) => s + Number(r.mortgage_pmt), 0);
           const annualExpenses = records.reduce((s, r) => {
@@ -105,10 +108,7 @@ export default function RentalPortfolio() {
           const noi = annualRent - annualExpenses;
           const cashflow = noi - annualMortgage;
           const capRate = p.market_value ? (noi / Number(p.market_value)) * 100 : null;
-          const equity = p.market_value && p.mortgage_balance
-            ? Number(p.market_value) - Number(p.mortgage_balance)
-            : null;
-
+          const equity = p.market_value && p.mortgage_balance ? Number(p.market_value) - Number(p.mortgage_balance) : null;
           return { ...p, annualRent, annualExpenses, annualMortgage, noi, cashflow, capRate, equity };
         })
       );
@@ -161,8 +161,15 @@ export default function RentalPortfolio() {
   const totalNOI = stats.reduce((s, p) => s + p.noi, 0);
   const totalRent = stats.reduce((s, p) => s + p.annualRent, 0);
   const totalEquity = stats.reduce((s, p) => s + (p.equity ?? 0), 0);
+  const totalExpenses = stats.reduce((s, p) => s + p.annualExpenses + p.annualMortgage, 0);
+  const avgCapRate = stats.filter(p => p.capRate !== null).length > 0
+    ? stats.filter(p => p.capRate !== null).reduce((s, p) => s + (p.capRate ?? 0), 0) / stats.filter(p => p.capRate !== null).length
+    : null;
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 6 }, (_, i) => currentYear - i);
+
+  // Group properties by performance
+  const sortedStats = [...stats].sort((a, b) => b.cashflow - a.cashflow);
 
   return (
     <div className="space-y-5">
@@ -200,20 +207,36 @@ export default function RentalPortfolio() {
         </div>
       )}
 
-      {/* Portfolio totals */}
+      {/* Portfolio summary */}
       {stats.length > 0 && (
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 grid grid-cols-3 gap-3 dark:bg-gray-900 dark:border-gray-800">
-          <div>
-            <p className="text-xs text-gray-400">Annual Rent</p>
-            <p className="text-base font-bold text-gray-800 dark:text-gray-200">{fmt(totalRent)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400">NOI</p>
-            <p className={`text-base font-bold ${totalNOI >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{fmt(totalNOI)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400">Total Equity</p>
-            <p className="text-base font-bold text-gray-800 dark:text-gray-200">{fmt(totalEquity)}</p>
+        <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs text-gray-400">Annual Rent</p>
+              <p className="text-lg font-bold text-gray-800 dark:text-gray-200">{fmt(totalRent)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400">NOI</p>
+              <p className={`text-lg font-bold ${totalNOI >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{fmt(totalNOI)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400">Total Equity</p>
+              <p className="text-lg font-bold text-gray-800 dark:text-gray-200">{fmt(totalEquity)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400">Expenses + Mortgage</p>
+              <p className="text-lg font-bold text-red-500">{fmt(totalExpenses)}</p>
+            </div>
+            {avgCapRate !== null && (
+              <div>
+                <p className="text-xs text-gray-400">Avg Cap Rate</p>
+                <p className="text-lg font-bold text-gray-800 dark:text-gray-200">{avgCapRate.toFixed(1)}%</p>
+              </div>
+            )}
+            <div>
+              <p className="text-xs text-gray-400">Properties</p>
+              <p className="text-lg font-bold text-gray-800 dark:text-gray-200">{stats.length}</p>
+            </div>
           </div>
         </div>
       )}
@@ -226,7 +249,7 @@ export default function RentalPortfolio() {
             const maxAbs = Math.max(...stats.map((p) => Math.abs(p.noi)), 1);
             return (
               <div className="space-y-2">
-                {stats.map((p) => {
+                {sortedStats.map((p) => {
                   const pct = Math.abs(p.noi) / maxAbs;
                   const isPos = p.noi >= 0;
                   const shortAddr = p.address.split(',')[0];
@@ -286,76 +309,88 @@ export default function RentalPortfolio() {
         </div>
       )}
 
-      {/* Property cards */}
-      {!loading && stats.map((p) => (
-        <div
-          key={p.id}
-          onClick={() => router.push(`/rentals/${p.id}`)}
-          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 cursor-pointer active:scale-[0.98] transition-transform dark:bg-gray-900 dark:border-gray-800"
-        >
-          <div className="flex items-start gap-3">
-            <Building2 size={20} className="text-sky-500 mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-1">
-                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{p.address}</p>
-                <button
-                  onClick={(e) => deleteProperty(e, p.id)}
-                  disabled={deleting === p.id}
-                  className="shrink-0 text-gray-300 hover:text-red-400 disabled:opacity-40 p-0.5"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-              {p.purchase_date && (
-                <p className="text-xs text-gray-400">Purchased {new Date(p.purchase_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</p>
-              )}
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-3">
-                {p.market_value ? (
-                  <div>
-                    <p className="text-xs text-gray-400">Market Value</p>
-                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{fmt(Number(p.market_value))}</p>
+      {/* Property cards — sorted by cashflow (best performing first) */}
+      {!loading && sortedStats.map((p) => {
+        const perf = getPerformanceTag(p);
+        const PerfIcon = perf.icon;
+        return (
+          <div
+            key={p.id}
+            onClick={() => router.push(`/rentals/${p.id}`)}
+            className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 cursor-pointer active:scale-[0.98] transition-transform dark:bg-gray-900 dark:border-gray-800"
+          >
+            <div className="flex items-start gap-3">
+              <Building2 size={20} className="text-sky-500 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-1">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{p.address}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex items-center gap-0.5 ${perf.color}`}>
+                        <PerfIcon size={10} /> {perf.label}
+                      </span>
+                      {p.purchase_date && (
+                        <span className="text-xs text-gray-400">
+                          Since {new Date(p.purchase_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                ) : null}
-                {p.mortgage_balance ? (
-                  <div>
-                    <p className="text-xs text-gray-400">Mortgage</p>
-                    <p className="text-sm font-semibold text-red-500">{fmt(Number(p.mortgage_balance))}</p>
-                  </div>
-                ) : null}
-                {p.market_value ? (
-                  <div>
-                    <p className="text-xs text-gray-400">Equity</p>
-                    <p className="text-sm font-semibold text-emerald-600">
-                      {fmt(Number(p.market_value) - Number(p.mortgage_balance ?? 0))}
-                    </p>
-                  </div>
-                ) : null}
-                <div>
-                  <p className="text-xs text-gray-400">{selectedYear} Rent</p>
-                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{p.annualRent ? fmt(p.annualRent) : '—'}</p>
+                  <button
+                    onClick={(e) => deleteProperty(e, p.id)}
+                    disabled={deleting === p.id}
+                    className="shrink-0 text-gray-300 hover:text-red-400 disabled:opacity-40 p-0.5"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
-                {p.cashflow !== 0 && (
+                <div className="grid grid-cols-3 gap-x-3 gap-y-1.5 mt-3">
+                  {p.market_value ? (
+                    <div>
+                      <p className="text-[10px] text-gray-400">Value</p>
+                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{fmt(Number(p.market_value))}</p>
+                    </div>
+                  ) : null}
+                  {p.equity !== null ? (
+                    <div>
+                      <p className="text-[10px] text-gray-400">Equity</p>
+                      <p className="text-sm font-semibold text-emerald-600">{fmt(p.equity)}</p>
+                    </div>
+                  ) : null}
                   <div>
-                    <p className="text-xs text-gray-400">Cashflow</p>
-                    <p className={`text-sm font-semibold ${p.cashflow >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{fmt(p.cashflow)}</p>
+                    <p className="text-[10px] text-gray-400">{selectedYear} Rent</p>
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{p.annualRent ? fmt(p.annualRent) : '—'}</p>
                   </div>
-                )}
-                {p.capRate !== null && p.capRate !== 0 && (
-                  <div>
-                    <p className="text-xs text-gray-400">Cap Rate</p>
-                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{p.capRate.toFixed(1)}%</p>
-                  </div>
-                )}
+                  {p.noi !== 0 && (
+                    <div>
+                      <p className="text-[10px] text-gray-400">NOI</p>
+                      <p className={`text-sm font-semibold ${p.noi >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{fmt(p.noi)}</p>
+                    </div>
+                  )}
+                  {p.cashflow !== 0 && (
+                    <div>
+                      <p className="text-[10px] text-gray-400">Cashflow</p>
+                      <p className={`text-sm font-semibold ${p.cashflow >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{fmt(p.cashflow)}</p>
+                    </div>
+                  )}
+                  {p.capRate !== null && p.capRate !== 0 && (
+                    <div>
+                      <p className="text-[10px] text-gray-400">Cap Rate</p>
+                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{p.capRate.toFixed(1)}%</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {!loading && properties.length === 0 && (
         <div className="text-center py-16 text-gray-400">
           <Building2 size={40} className="mx-auto mb-3 opacity-30" />
-          <p className="text-sm">No properties yet. Add one above.</p>
+          <p className="text-sm font-medium">No properties yet</p>
+          <p className="text-xs mt-1">Add your first rental property above</p>
         </div>
       )}
     </div>
