@@ -124,12 +124,12 @@ export default function TaxReturnsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-24">
       {/* Header */}
-      <div className="bg-white border-b border-gray-100 sticky top-0 z-30">
+      <div className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 sticky top-0 z-30">
         <div className="max-w-lg mx-auto px-4 py-3">
           <div className="flex items-center justify-between mb-2">
-            <h1 className="text-base font-semibold text-gray-800">Tax Returns</h1>
+            <h1 className="text-base font-semibold text-gray-800 dark:text-gray-200">Tax Returns</h1>
             <div className="flex items-center gap-2">
               {saving && <Loader2 size={13} className="animate-spin text-gray-400" />}
               {taxReturn?.updated_at && !saving && (
@@ -138,7 +138,7 @@ export default function TaxReturnsPage() {
               <button
                 onClick={syncFromDocs}
                 disabled={syncing}
-                className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 disabled:opacity-50"
+                className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-900/50 disabled:opacity-50"
               >
                 <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
                 Sync from docs
@@ -151,7 +151,7 @@ export default function TaxReturnsPage() {
             <button
               onClick={() => setYear((y) => Math.min(CURRENT_YEAR, y + 1))}
               disabled={year >= CURRENT_YEAR}
-              className="p-1 rounded-lg hover:bg-gray-100 disabled:opacity-30"
+              className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30"
             >
               <ChevronLeft size={16} />
             </button>
@@ -161,7 +161,7 @@ export default function TaxReturnsPage() {
                   key={y}
                   onClick={() => setYear(y)}
                   className={`shrink-0 px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-                    year === y ? 'bg-sky-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    year === y ? 'bg-sky-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
                   }`}
                 >
                   {y}
@@ -171,19 +171,19 @@ export default function TaxReturnsPage() {
             <button
               onClick={() => setYear((y) => Math.max(2019, y - 1))}
               disabled={year <= 2019}
-              className="p-1 rounded-lg hover:bg-gray-100 disabled:opacity-30"
+              className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30"
             >
               <ChevronRight size={16} />
             </button>
           </div>
 
           {/* Country toggle */}
-          <div className="flex rounded-xl overflow-hidden border border-gray-200">
+          <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
             {(['US', 'India'] as Country[]).map((c) => (
               <button
                 key={c}
                 onClick={() => setCountry(c)}
-                className={`flex-1 py-2 text-sm font-medium transition-colors ${country === c ? 'bg-sky-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${country === c ? 'bg-sky-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
               >
                 {c === 'US' ? '🇺🇸 US (Form 1040)' : '🇮🇳 India (ITR)'}
               </button>

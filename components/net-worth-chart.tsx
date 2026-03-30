@@ -50,7 +50,7 @@ export default function NetWorthChart({ compact = false }: Props) {
   if (snapshots.length < 2) {
     if (compact) return null;
     return (
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 text-center py-8">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800 text-center py-8">
         <p className="text-xs text-gray-400">Net worth history will appear here once you have at least 2 days of data.</p>
       </div>
     );
@@ -81,10 +81,10 @@ export default function NetWorthChart({ compact = false }: Props) {
   const maxV = Math.max(...values);
 
   return (
-    <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+    <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800">
       <div className="flex items-start justify-between mb-1">
         <div>
-          <p className="text-xs text-gray-500">Net Worth Trend</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Net Worth Trend</p>
           <p className={`text-sm font-semibold mt-0.5 ${change >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
             {change >= 0 ? '+' : ''}{fmt(change)} since {formatDate(first.snapshot_date)}
           </p>
@@ -115,13 +115,13 @@ export default function NetWorthChart({ compact = false }: Props) {
       {/* Asset / Liability bar */}
       {latest.total_assets > 0 && (
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-          <div className="bg-emerald-50 rounded-xl px-3 py-2">
-            <p className="text-emerald-600 font-medium">Assets</p>
-            <p className="text-gray-800 font-semibold">{fmt(Number(latest.total_assets))}</p>
+          <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-xl px-3 py-2">
+            <p className="text-emerald-600 dark:text-emerald-400 font-medium">Assets</p>
+            <p className="text-gray-800 dark:text-gray-200 font-semibold">{fmt(Number(latest.total_assets))}</p>
           </div>
-          <div className="bg-red-50 rounded-xl px-3 py-2">
-            <p className="text-red-500 font-medium">Liabilities</p>
-            <p className="text-gray-800 font-semibold">{fmt(Number(latest.total_liabs))}</p>
+          <div className="bg-red-50 dark:bg-red-950/30 rounded-xl px-3 py-2">
+            <p className="text-red-500 dark:text-red-400 font-medium">Liabilities</p>
+            <p className="text-gray-800 dark:text-gray-200 font-semibold">{fmt(Number(latest.total_liabs))}</p>
           </div>
         </div>
       )}

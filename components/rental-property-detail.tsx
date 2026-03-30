@@ -148,19 +148,19 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
       </button>
 
       {/* Property header */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800">
         {editing ? (
           <div className="space-y-2">
-            <input value={editForm.address} onChange={e => setEditForm({...editForm, address: e.target.value})} placeholder="Address" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+            <input value={editForm.address} onChange={e => setEditForm({...editForm, address: e.target.value})} placeholder="Address" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
             <div className="grid grid-cols-2 gap-2">
-              <input type="number" value={editForm.purchase_price} onChange={e => setEditForm({...editForm, purchase_price: e.target.value})} placeholder="Purchase price" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
-              <input type="date" value={editForm.purchase_date} onChange={e => setEditForm({...editForm, purchase_date: e.target.value})} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+              <input type="number" value={editForm.purchase_price} onChange={e => setEditForm({...editForm, purchase_price: e.target.value})} placeholder="Purchase price" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
+              <input type="date" value={editForm.purchase_date} onChange={e => setEditForm({...editForm, purchase_date: e.target.value})} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <input type="number" value={editForm.market_value} onChange={e => setEditForm({...editForm, market_value: e.target.value})} placeholder="Market value" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
-              <input type="number" value={editForm.mortgage_balance} onChange={e => setEditForm({...editForm, mortgage_balance: e.target.value})} placeholder="Mortgage balance" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+              <input type="number" value={editForm.market_value} onChange={e => setEditForm({...editForm, market_value: e.target.value})} placeholder="Market value" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
+              <input type="number" value={editForm.mortgage_balance} onChange={e => setEditForm({...editForm, mortgage_balance: e.target.value})} placeholder="Mortgage balance" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
             </div>
-            <input value={editForm.notes} onChange={e => setEditForm({...editForm, notes: e.target.value})} placeholder="Notes" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+            <input value={editForm.notes} onChange={e => setEditForm({...editForm, notes: e.target.value})} placeholder="Notes" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
             <div className="flex gap-2 pt-1">
               <button onClick={saveEdit} className="flex items-center gap-1 text-sm text-emerald-600 font-medium"><Check size={15} /> Save</button>
               <button onClick={() => setEditing(false)} className="flex items-center gap-1 text-sm text-gray-400"><X size={15} /> Cancel</button>
@@ -169,7 +169,7 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
         ) : (
           <div>
             <div className="flex items-start justify-between">
-              <p className="font-semibold text-gray-800">{property.address}</p>
+              <p className="font-semibold text-gray-800 dark:text-gray-200">{property.address}</p>
               <div className="flex gap-2 shrink-0 ml-2">
                 <button onClick={startEdit} className="text-gray-300 hover:text-sky-500"><Pencil size={15} /></button>
                 <button onClick={deleteProperty} className="text-gray-300 hover:text-red-400"><Trash2 size={15} /></button>
@@ -188,7 +188,7 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
         <select
           value={selectedYear}
           onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-          className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+          className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
         >
           {years.map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
@@ -201,10 +201,10 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
       </div>
 
       {/* Annual KPIs */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 grid grid-cols-2 gap-3">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800 grid grid-cols-2 gap-3">
         <div>
           <p className="text-xs text-gray-400">Annual Rent</p>
-          <p className="text-base font-bold text-gray-800">{fmt(annualRent)}</p>
+          <p className="text-base font-bold text-gray-800 dark:text-gray-200">{fmt(annualRent)}</p>
         </div>
         <div>
           <p className="text-xs text-gray-400">NOI</p>
@@ -217,13 +217,13 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
         {capRate !== null && (
           <div>
             <p className="text-xs text-gray-400">Cap Rate</p>
-            <p className="text-base font-bold text-gray-800">{capRate.toFixed(2)}%</p>
+            <p className="text-base font-bold text-gray-800 dark:text-gray-200">{capRate.toFixed(2)}%</p>
           </div>
         )}
         {cashOnCash !== null && (
           <div>
             <p className="text-xs text-gray-400">Cash-on-Cash</p>
-            <p className="text-base font-bold text-gray-800">{cashOnCash.toFixed(2)}%</p>
+            <p className="text-base font-bold text-gray-800 dark:text-gray-200">{cashOnCash.toFixed(2)}%</p>
           </div>
         )}
       </div>
@@ -244,30 +244,30 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
       })()}
 
       {/* Monthly records table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-          <h3 className="text-sm font-semibold text-gray-700">Monthly Records</h3>
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Monthly Records</h3>
           <button onClick={() => setAddingRecord(!addingRecord)} className="flex items-center gap-1 text-xs text-sky-600 font-medium">
             <Plus size={14} /> Log Month
           </button>
         </div>
 
         {addingRecord && (
-          <form onSubmit={logMonth} className="p-4 space-y-3 border-b border-gray-100 bg-sky-50">
+          <form onSubmit={logMonth} className="p-4 space-y-3 border-b border-gray-100 dark:border-gray-800 bg-sky-50 dark:bg-sky-950/30">
             <div className="grid grid-cols-2 gap-2">
-              <select value={form.month} onChange={(e) => setForm({ ...form, month: parseInt(e.target.value) })} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none">
+              <select value={form.month} onChange={(e) => setForm({ ...form, month: parseInt(e.target.value) })} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
                 {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
               </select>
-              <input type="number" value={form.rent_collected} onChange={(e) => setForm({ ...form, rent_collected: e.target.value })} placeholder="Rent collected ($)" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none" />
+              <input type="number" value={form.rent_collected} onChange={(e) => setForm({ ...form, rent_collected: e.target.value })} placeholder="Rent collected ($)" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <input type="number" value={form.mortgage_pmt} onChange={(e) => setForm({ ...form, mortgage_pmt: e.target.value })} placeholder="Mortgage ($)" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none" />
-              <input type="number" value={form.vacancy_days} onChange={(e) => setForm({ ...form, vacancy_days: e.target.value })} placeholder="Vacancy days" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none" />
+              <input type="number" value={form.mortgage_pmt} onChange={(e) => setForm({ ...form, mortgage_pmt: e.target.value })} placeholder="Mortgage ($)" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
+              <input type="number" value={form.vacancy_days} onChange={(e) => setForm({ ...form, vacancy_days: e.target.value })} placeholder="Vacancy days" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
             </div>
             <p className="text-xs text-gray-500 font-medium">Expenses</p>
             <div className="grid grid-cols-2 gap-2">
               {EXPENSE_KEYS.map((k) => (
-                <input key={k} type="number" value={String((form as Record<string, unknown>)[k] ?? '')} onChange={(e) => setForm({ ...form, [k]: e.target.value })} placeholder={`${k.replace('_', ' ')} ($)`} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none" />
+                <input key={k} type="number" value={String((form as Record<string, unknown>)[k] ?? '')} onChange={(e) => setForm({ ...form, [k]: e.target.value })} placeholder={`${k.replace('_', ' ')} ($)`} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
               ))}
             </div>
             <button type="submit" className="w-full bg-sky-600 text-white rounded-xl py-2.5 text-sm font-medium">Save</button>
@@ -278,7 +278,7 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
           <p className="text-center text-gray-400 text-sm py-8">No records for {selectedYear}</p>
         ) : (
           <table className="w-full text-sm">
-            <thead className="text-xs text-gray-400 bg-gray-50">
+            <thead className="text-xs text-gray-400 bg-gray-50 dark:bg-gray-800">
               <tr>
                 <th className="px-4 py-2 text-left">Month</th>
                 <th className="px-3 py-2 text-right">Rent</th>
@@ -291,9 +291,9 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
                 const exp = Object.values(r.expenses as Record<string, number>).reduce((a, b) => a + b, 0);
                 const cf = Number(r.rent_collected) - exp - Number(r.mortgage_pmt);
                 return (
-                  <tr key={r.id} className="border-t border-gray-50">
-                    <td className="px-4 py-2.5 text-gray-700">{MONTHS[r.month - 1]}</td>
-                    <td className="px-3 py-2.5 text-right text-gray-700">{fmt(Number(r.rent_collected))}</td>
+                  <tr key={r.id} className="border-t border-gray-50 dark:border-gray-800">
+                    <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300">{MONTHS[r.month - 1]}</td>
+                    <td className="px-3 py-2.5 text-right text-gray-700 dark:text-gray-300">{fmt(Number(r.rent_collected))}</td>
                     <td className="px-3 py-2.5 text-right text-gray-500">{fmt(exp + Number(r.mortgage_pmt))}</td>
                     <td className={`px-3 py-2.5 text-right font-medium ${cf >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{fmt(cf)}</td>
                   </tr>

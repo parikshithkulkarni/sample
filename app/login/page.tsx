@@ -68,19 +68,19 @@ function LoginForm() {
   return (
     <div className="p-4 pt-16 max-w-sm mx-auto">
       <div className="mb-8 text-center">
-        <h1 className="text-2xl font-bold text-gray-900">Second Brain</h1>
-        <p className="text-sm text-gray-500 mt-1">Your private AI dashboard</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Second Brain</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Your private AI dashboard</p>
       </div>
 
       {setupDone && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 mb-4 text-sm text-emerald-700 font-medium">
+        <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-2xl px-4 py-3 mb-4 text-sm text-emerald-700 dark:text-emerald-300 font-medium">
           Account created! Sign in below.
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+      <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-4 space-y-3">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Username</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Username</label>
           <input
             type="text"
             value={username}
@@ -88,18 +88,18 @@ function LoginForm() {
             required
             autoCapitalize="none"
             autoCorrect="off"
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className="w-full border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Password</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Password</label>
           <div className="relative">
             <input
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm pr-10 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="w-full border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-xl px-3 py-2.5 text-sm pr-10 focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
             <button
               type="button"

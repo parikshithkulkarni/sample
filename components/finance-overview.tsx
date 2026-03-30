@@ -6,6 +6,8 @@ import { fmt } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import NetWorthChart from '@/components/net-worth-chart';
 import FinanceBreakdownChart from '@/components/finance-breakdown-chart';
+import { SkeletonCard, SkeletonList } from '@/components/skeleton';
+import { useToast } from '@/components/toast';
 
 interface Account {
   id: string;
@@ -33,7 +35,9 @@ function normalizeAcctName(name: string): string {
 
 export default function FinanceOverview() {
   const router = useRouter();
+  const { addToast } = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [merging, setMerging] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -59,7 +63,10 @@ export default function FinanceOverview() {
   })();
 
   useEffect(() => {
-    fetch('/api/finance').then((r) => r.json()).then((d) => setAccounts(Array.isArray(d) ? d : d?.data ?? []));
+    fetch('/api/finance')
+      .then((r) => r.json())
+      .then((d) => setAccounts(Array.isArray(d) ? d : d?.data ?? []))
+      .finally(() => setLoading(false));
   }, []);
 
   const assets = accounts.filter((a) => a.type === 'asset');
@@ -102,25 +109,43 @@ export default function FinanceOverview() {
   }
 
   async function saveBalance(id: string) {
-    const res = await fetch(`/api/finance/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ balance: parseFloat(editBalance) }),
-    });
-    const updated = await res.json() as Account;
-    setAccounts((prev) => prev.map((a) => a.id === id ? updated : a));
+    const prev = accounts;
+    const newBalance = parseFloat(editBalance);
+    // Optimistic update
+    setAccounts((cur) => cur.map((a) => a.id === id ? { ...a, balance: newBalance } : a));
     setEditId(null);
+    try {
+      const res = await fetch(`/api/finance/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ balance: newBalance }),
+      });
+      const updated = await res.json() as Account;
+      setAccounts((cur) => cur.map((a) => a.id === id ? updated : a));
+      addToast({ type: 'success', message: 'Balance updated' });
+    } catch {
+      setAccounts(prev);
+      addToast({ type: 'error', message: 'Failed to update balance' });
+    }
   }
 
   async function remove(id: string) {
-    await fetch(`/api/finance/${id}`, { method: 'DELETE' });
-    setAccounts((prev) => prev.filter((a) => a.id !== id));
+    const prev = accounts;
+    // Optimistic update
+    setAccounts((cur) => cur.filter((a) => a.id !== id));
+    try {
+      await fetch(`/api/finance/${id}`, { method: 'DELETE' });
+      addToast({ type: 'success', message: 'Account removed' });
+    } catch {
+      setAccounts(prev);
+      addToast({ type: 'error', message: 'Failed to remove account' });
+    }
   }
 
   const AccountRow = ({ a }: { a: Account }) => (
-    <li className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+    <li className="flex items-center justify-between py-2 border-b border-gray-50 dark:border-gray-800 last:border-0">
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-gray-700 truncate">{a.name}</p>
+        <p className="text-sm text-gray-700 dark:text-gray-300 truncate">{a.name}</p>
         <p className="text-xs text-gray-400">{a.category.replace('_', ' ')}</p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
@@ -129,7 +154,7 @@ export default function FinanceOverview() {
             <input
               value={editBalance}
               onChange={(e) => setEditBalance(e.target.value)}
-              className="w-28 border border-gray-200 rounded-lg px-2 py-1 text-sm text-right"
+              className="w-28 border border-gray-200 rounded-lg px-2 py-1 text-sm text-right dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
               autoFocus
             />
             <button onClick={() => saveBalance(a.id)} className="text-emerald-500"><Check size={16} /></button>
@@ -137,7 +162,7 @@ export default function FinanceOverview() {
           </>
         ) : (
           <>
-            <span className={`text-sm font-medium ${a.type === 'asset' ? 'text-gray-800' : 'text-red-500'}`}>
+            <span className={`text-sm font-medium ${a.type === 'asset' ? 'text-gray-800 dark:text-gray-200' : 'text-red-500'}`}>
               {fmt(Number(a.balance), a.currency)}
             </span>
             <button onClick={() => { setEditId(a.id); setEditBalance(String(a.balance)); }} className="text-gray-300 hover:text-sky-500">
@@ -152,11 +177,20 @@ export default function FinanceOverview() {
     </li>
   );
 
+  if (loading) {
+    return (
+      <div className="space-y-5">
+        <SkeletonCard />
+        <SkeletonList count={4} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       {/* Duplicate account warning */}
       {dupGroups.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center justify-between gap-3">
+        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl p-3 flex items-center justify-between gap-3">
           <div>
             <p className="text-sm font-medium text-amber-800">Duplicate accounts detected</p>
             <p className="text-xs text-amber-600 mt-0.5">
@@ -175,11 +209,11 @@ export default function FinanceOverview() {
       )}
 
       {/* Net worth card */}
-      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-        <p className="text-xs text-gray-500 mb-1">Net Worth</p>
+      <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Net Worth</p>
         <p className={`text-3xl font-bold ${netWorth >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{fmt(netWorth)}</p>
         <div className="flex gap-4 mt-3 text-sm">
-          <div><span className="text-gray-400">Assets </span><span className="font-medium text-gray-800">{fmt(totalAssets)}</span></div>
+          <div><span className="text-gray-400">Assets </span><span className="font-medium text-gray-800 dark:text-gray-200">{fmt(totalAssets)}</span></div>
           <div><span className="text-gray-400">Liabilities </span><span className="font-medium text-red-500">{fmt(totalLiabilities)}</span></div>
         </div>
       </div>
@@ -191,15 +225,15 @@ export default function FinanceOverview() {
       <FinanceBreakdownChart />
 
       {/* Assets */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">Assets</h3>
+      <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Assets</h3>
         <ul>{assets.map((a) => <AccountRow key={a.id} a={a} />)}</ul>
         {assets.length === 0 && <p className="text-xs text-gray-400">No assets added yet</p>}
       </div>
 
       {/* Liabilities */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">Liabilities</h3>
+      <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Liabilities</h3>
         <ul>{liabilities.map((a) => <AccountRow key={a.id} a={a} />)}</ul>
         {liabilities.length === 0 && <p className="text-xs text-gray-400">No liabilities added yet</p>}
       </div>
@@ -220,9 +254,9 @@ export default function FinanceOverview() {
           <Plus size={16} /> Add Account
         </button>
         {adding && (
-          <form onSubmit={addAccount} className="mt-3 bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
-            <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Account name" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
-            <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as 'asset' | 'liability' })} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500">
+          <form onSubmit={addAccount} className="mt-3 bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800 space-y-3">
+            <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Account name" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
+            <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as 'asset' | 'liability' })} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
               <option value="asset">Asset</option>
               <option value="liability">Liability</option>
             </select>
@@ -231,14 +265,14 @@ export default function FinanceOverview() {
               value={form.category}
               onChange={(e) => setForm({ ...form, category: e.target.value })}
               placeholder={form.type === 'asset' ? 'Category (e.g. 401k, iso_options…)' : 'Category (e.g. mortgage, heloc…)'}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
             />
             <datalist id="category-suggestions">
               {(form.type === 'asset' ? ASSET_SUGGESTIONS : LIABILITY_SUGGESTIONS).map((c) => (
                 <option key={c} value={c} />
               ))}
             </datalist>
-            <input required type="number" value={form.balance} onChange={(e) => setForm({ ...form, balance: e.target.value })} placeholder="Balance ($)" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+            <input required type="number" value={form.balance} onChange={(e) => setForm({ ...form, balance: e.target.value })} placeholder="Balance ($)" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100" />
             <button type="submit" className="w-full bg-sky-600 text-white rounded-xl py-2.5 text-sm font-medium">Save Account</button>
           </form>
         )}
