@@ -8,10 +8,19 @@ import { fmt } from '@/lib/utils';
 function normalizeAddr(addr: string): string {
   return addr
     .toLowerCase()
+    .replace(/\b\d{5}(-\d{4})?\b/g, '')       // strip zip codes
     .replace(/\bstreet\b/g, 'st').replace(/\bavenue\b/g, 'ave').replace(/\bboulevard\b/g, 'blvd')
     .replace(/\bdrive\b/g, 'dr').replace(/\broad\b/g, 'rd').replace(/\bcourt\b/g, 'ct')
     .replace(/\blane\b/g, 'ln').replace(/\bplace\b/g, 'pl').replace(/\bcircle\b/g, 'cir')
     .replace(/[,\.#]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// Two addresses are duplicates if their normalized forms match OR one starts with the other
+// (handles cases where one has city/state appended and the other doesn't)
+function addrMatch(a: string, b: string): boolean {
+  const na = normalizeAddr(a);
+  const nb = normalizeAddr(b);
+  return na === nb || na.startsWith(nb + ' ') || nb.startsWith(na + ' ');
 }
 
 interface Property {
@@ -53,15 +62,25 @@ export default function RentalPortfolio() {
   const [merging, setMerging] = useState(false);
   const [form, setForm] = useState({ address: '', purchase_price: '', purchase_date: '', market_value: '', mortgage_balance: '', notes: '' });
 
-  // Detect duplicate groups (same normalized address)
+  // Detect duplicate groups using address matching (handles abbreviation + zip differences)
   const dupGroups: Property[][] = (() => {
-    const groups: Record<string, Property[]> = {};
-    for (const p of properties) {
-      const key = normalizeAddr(p.address);
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(p);
+    const visited = new Set<string>();
+    const groups: Property[][] = [];
+    for (let i = 0; i < properties.length; i++) {
+      if (visited.has(properties[i].id)) continue;
+      const group = [properties[i]];
+      for (let j = i + 1; j < properties.length; j++) {
+        if (!visited.has(properties[j].id) && addrMatch(properties[i].address, properties[j].address)) {
+          group.push(properties[j]);
+          visited.add(properties[j].id);
+        }
+      }
+      if (group.length > 1) {
+        visited.add(properties[i].id);
+        groups.push(group);
+      }
     }
-    return Object.values(groups).filter(g => g.length > 1);
+    return groups;
   })();
 
   useEffect(() => {

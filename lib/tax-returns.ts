@@ -1,7 +1,6 @@
 // Server-only: DB sync logic. Pure data/types/calcs are in lib/tax-data.ts
 import { sql } from '@/lib/db';
 import { US_DEFAULT, INDIA_DEFAULT } from '@/lib/tax-data';
-import type { UsData, IndiaData } from '@/lib/tax-data';
 
 // Re-export everything from tax-data for backwards compatibility
 export * from '@/lib/tax-data';
@@ -155,5 +154,3 @@ function deepMerge(target: Record<string, unknown>, source: Record<string, unkno
   }
 }
 
-// Type re-exports (for files that import types from tax-returns directly)
-export type { UsData, IndiaData };

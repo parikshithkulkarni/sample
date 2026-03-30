@@ -9,10 +9,17 @@ const anthropic = new Anthropic();
 export function normalizeAddress(addr: string): string {
   return addr
     .toLowerCase()
+    .replace(/\b\d{5}(-\d{4})?\b/g, '')       // strip zip codes
     .replace(/\bstreet\b/g, 'st').replace(/\bavenue\b/g, 'ave').replace(/\bboulevard\b/g, 'blvd')
     .replace(/\bdrive\b/g, 'dr').replace(/\broad\b/g, 'rd').replace(/\bcourt\b/g, 'ct')
     .replace(/\blane\b/g, 'ln').replace(/\bplace\b/g, 'pl').replace(/\bcircle\b/g, 'cir')
     .replace(/[,\.#]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function addressesMatch(a: string, b: string): boolean {
+  const na = normalizeAddress(a);
+  const nb = normalizeAddress(b);
+  return na === nb || na.startsWith(nb + ' ') || nb.startsWith(na + ' ');
 }
 
 export function parseNum(v: unknown): number | null {
@@ -159,9 +166,8 @@ CORRECT: 450000   WRONG: "450,000" or "$450k"
       const purchase_price   = parseNum(prop.purchase_price);
       const market_value     = parseNum(prop.market_value);
       const mortgage_balance = parseNum(prop.mortgage_balance);
-      const normAddr = normalizeAddress(prop.address);
       const allProps = await sql`SELECT id, address, market_value, mortgage_balance, purchase_price FROM properties` as { id: string; address: string; market_value: number | null; mortgage_balance: number | null; purchase_price: number | null }[];
-      const existing = allProps.filter(p => normalizeAddress(p.address) === normAddr);
+      const existing = allProps.filter(p => addressesMatch(p.address, prop.address));
       if (existing.length > 0) {
         // Update only fields that were null/zero and now have real values
         const row = existing[0];
