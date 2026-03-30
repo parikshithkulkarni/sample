@@ -17,6 +17,24 @@ interface TaxReturn {
   updated_at: string | null;
 }
 
+// Ensure all top-level nested objects exist — prevents crashes when DB has partial data
+function withDefaults(data: unknown, country: Country): UsData | IndiaData {
+  const def = country === 'US' ? US_DEFAULT : INDIA_DEFAULT;
+  if (!data || typeof data !== 'object') return { ...def };
+  const d = data as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...def };
+  for (const key of Object.keys(def as object)) {
+    const defVal = (def as Record<string, unknown>)[key];
+    const storedVal = d[key];
+    if (storedVal !== null && storedVal !== undefined && typeof storedVal === 'object' && typeof defVal === 'object' && defVal !== null) {
+      out[key] = { ...(defVal as object), ...(storedVal as object) };
+    } else if (storedVal !== null && storedVal !== undefined) {
+      out[key] = storedVal;
+    }
+  }
+  return out as UsData | IndiaData;
+}
+
 const CURRENT_YEAR = new Date().getFullYear();
 // Tax returns go back to 2019; current year may be in-progress
 const YEARS = Array.from({ length: CURRENT_YEAR - 2018 }, (_, i) => CURRENT_YEAR - i);
@@ -45,11 +63,11 @@ export default function TaxReturnsPage() {
       const res = await fetch(`/api/tax-returns?year=${y}&country=${c}`);
       if (!res.ok) throw new Error(`API ${res.status}`);
       const json = await res.json() as TaxReturn;
-      // Validate that the response has a proper data object
       if (!json?.data || typeof json.data !== 'object') throw new Error('Invalid response shape');
-      setTaxReturn(json);
+      // Merge with defaults so missing nested fields never crash the component
+      setTaxReturn({ ...json, data: withDefaults(json.data, c) });
     } catch {
-      setTaxReturn({ id: null, tax_year: y, country: c, data: c === 'US' ? { ...US_DEFAULT } : { ...INDIA_DEFAULT }, updated_at: null });
+      setTaxReturn({ id: null, tax_year: y, country: c, data: withDefaults(null, c), updated_at: null });
     } finally {
       setLoading(false);
     }
