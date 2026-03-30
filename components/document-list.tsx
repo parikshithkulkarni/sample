@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Trash2, ChevronDown, ChevronUp, Sparkles, Loader2, Check, X, ChevronRight } from 'lucide-react';
+import { Trash2, ChevronDown, ChevronUp, Sparkles, Loader2, Check, X, ChevronRight, FileText } from 'lucide-react';
 
 interface Doc {
   id: string;
@@ -49,11 +49,11 @@ interface Props {
 }
 
 const TAG_COLORS = [
-  'bg-sky-100 text-sky-700',
-  'bg-purple-100 text-purple-700',
-  'bg-emerald-100 text-emerald-700',
-  'bg-amber-100 text-amber-700',
-  'bg-rose-100 text-rose-700',
+  'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
+  'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+  'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+  'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
 ];
 
 const ASSET_SUGGESTIONS = ['401k','roth_ira','brokerage','rsu','espp','nso_options','iso_options','real_estate','savings','checking','money_market','cd','treasury','bond','crypto','hsa','529_plan','life_insurance','annuity','pension','startup_equity','business_interest','employment_income','tax_prepayment','interest_income','dividend_income','other'];
@@ -71,7 +71,7 @@ function numField(
         type="number"
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value === '' ? null : parseFloat(e.target.value))}
-        className="flex-1 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-sky-400"
+        className="flex-1 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-sky-400 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
       />
     </div>
   );
@@ -90,7 +90,7 @@ function strField(
         {...inputProps}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="flex-1 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-sky-400"
+        className="flex-1 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-sky-400 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
       />
     </div>
   );
@@ -193,16 +193,24 @@ export default function DocumentList({ refresh = 0 }: Props) {
 
   if (retrying) return <p className="text-center text-gray-400 text-sm py-6 animate-pulse">Setting up database…</p>;
   if (fetchError) return <p className="text-center text-red-400 text-sm py-6">Error: {fetchError}</p>;
-  if (docs.length === 0) return <p className="text-center text-gray-400 text-sm py-10">No documents yet. Upload one above.</p>;
+  if (docs.length === 0) return (
+    <div className="text-center py-12">
+      <div className="w-14 h-14 bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-3">
+        <FileText size={24} className="text-gray-300 dark:text-gray-600" />
+      </div>
+      <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">No documents yet</p>
+      <p className="text-xs text-gray-400 mt-1">Upload a PDF, TXT, or MD file above to get started</p>
+    </div>
+  );
 
   return (
     <ul className="space-y-3">
       {docs.map((d, i) => (
-        <li key={d.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <li key={d.id} className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
           <div className="p-4">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-800 truncate">{d.name}</p>
+                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{d.name}</p>
                 {d.summary && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{d.summary}</p>}
                 <div className="flex flex-wrap gap-1 mt-2">
                   {d.tags?.map((tag, ti) => (
@@ -211,7 +219,7 @@ export default function DocumentList({ refresh = 0 }: Props) {
                     </span>
                   ))}
                   {d.extracted_at && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
                       ✓ extracted
                     </span>
                   )}
@@ -223,7 +231,7 @@ export default function DocumentList({ refresh = 0 }: Props) {
                   className={`flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-colors ${
                     review?.docId === d.id
                       ? 'bg-sky-600 text-white border-sky-600'
-                      : 'bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100'
+                      : 'bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-800 dark:hover:bg-sky-900/50'
                   }`}
                   title="Extract & Review financial data"
                 >
@@ -246,11 +254,11 @@ export default function DocumentList({ refresh = 0 }: Props) {
 
           {/* AI Insights */}
           {expanded === d.id && d.insights && (
-            <div className="border-t border-gray-100 px-4 py-3 bg-sky-50">
-              <p className="text-xs font-medium text-sky-700 mb-2">AI Insights</p>
+            <div className="border-t border-gray-100 dark:border-gray-800 px-4 py-3 bg-sky-50 dark:bg-sky-950/30">
+              <p className="text-xs font-medium text-sky-700 dark:text-sky-300 mb-2">AI Insights</p>
               <ul className="space-y-1">
                 {d.insights.map((insight, j) => (
-                  <li key={j} className="text-sm text-gray-700 flex gap-2">
+                  <li key={j} className="text-sm text-gray-700 dark:text-gray-300 flex gap-2">
                     <span className="text-sky-500 shrink-0">•</span> {insight}
                   </li>
                 ))}
@@ -260,13 +268,13 @@ export default function DocumentList({ refresh = 0 }: Props) {
 
           {/* Extract & Review panel */}
           {review?.docId === d.id && !review.loading && (
-            <div className="border-t border-gray-100 bg-gray-50 px-4 py-4 space-y-4">
+            <div className="border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 px-4 py-4 space-y-4">
               {review.error && (
-                <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{review.error}</p>
+                <p className="text-xs text-red-500 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-800 rounded-lg px-3 py-2">{review.error}</p>
               )}
 
               {review.saved && (
-                <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 flex items-center gap-1.5">
+                <p className="text-xs text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-800 rounded-lg px-3 py-2 flex items-center gap-1.5">
                   <Check size={13} /> Saved to Finance & Rentals pages.
                 </p>
               )}
@@ -283,7 +291,7 @@ export default function DocumentList({ refresh = 0 }: Props) {
                   </p>
                   <div className="space-y-3">
                     {review.accounts.map((acct, idx) => (
-                      <div key={idx} className={`rounded-xl border p-3 space-y-2 ${acct._include ? 'border-sky-200 bg-white' : 'border-gray-200 bg-gray-100 opacity-60'}`}>
+                      <div key={idx} className={`rounded-xl border p-3 space-y-2 ${acct._include ? 'border-sky-200 bg-white dark:border-sky-800 dark:bg-gray-900' : 'border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800 opacity-60'}`}>
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 flex-1 min-w-0">
                             <input
@@ -295,13 +303,13 @@ export default function DocumentList({ refresh = 0 }: Props) {
                             <input
                               value={acct.name}
                               onChange={(e) => updateAccount(idx, { name: e.target.value })}
-                              className="flex-1 min-w-0 text-xs font-medium border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-sky-400"
+                              className="flex-1 min-w-0 text-xs font-medium border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-sky-400 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                             />
                           </div>
                           <select
                             value={acct.type}
                             onChange={(e) => updateAccount(idx, { type: e.target.value, category: 'other' })}
-                            className="text-xs border border-gray-200 rounded-lg px-1 py-1 focus:outline-none"
+                            className="text-xs border border-gray-200 rounded-lg px-1 py-1 focus:outline-none dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                           >
                             <option value="asset">Asset</option>
                             <option value="liability">Liability</option>
@@ -314,7 +322,7 @@ export default function DocumentList({ refresh = 0 }: Props) {
                             value={acct.category}
                             onChange={(e) => updateAccount(idx, { category: e.target.value })}
                             placeholder="e.g. 401k, iso_options…"
-                            className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-sky-400"
+                            className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-sky-400 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                           />
                           <datalist id="review-category-suggestions">
                             {(acct.type === 'asset' ? ASSET_SUGGESTIONS : LIABILITY_SUGGESTIONS).map((c) => (
@@ -338,7 +346,7 @@ export default function DocumentList({ refresh = 0 }: Props) {
                   </p>
                   <div className="space-y-3">
                     {review.properties.map((prop, idx) => (
-                      <div key={idx} className={`rounded-xl border p-3 space-y-2 ${prop._include ? 'border-sky-200 bg-white' : 'border-gray-200 bg-gray-100 opacity-60'}`}>
+                      <div key={idx} className={`rounded-xl border p-3 space-y-2 ${prop._include ? 'border-sky-200 bg-white dark:border-sky-800 dark:bg-gray-900' : 'border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800 opacity-60'}`}>
                         <div className="flex items-center gap-2">
                           <input
                             type="checkbox"
@@ -349,7 +357,7 @@ export default function DocumentList({ refresh = 0 }: Props) {
                           <input
                             value={prop.address}
                             onChange={(e) => updateProperty(idx, { address: e.target.value })}
-                            className="flex-1 min-w-0 text-xs font-medium border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-sky-400"
+                            className="flex-1 min-w-0 text-xs font-medium border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-sky-400 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                           />
                         </div>
                         {numField('Purchase $', prop.purchase_price, (v) => updateProperty(idx, { purchase_price: v }))}

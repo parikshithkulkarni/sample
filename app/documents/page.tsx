@@ -29,14 +29,14 @@ export default function DocumentsPage() {
     <div className="p-4 pt-6 space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Knowledge Base</h1>
-          <p className="text-sm text-gray-500">Upload docs — tap Extract to review and save financial data</p>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Knowledge Base</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Upload docs — tap Extract to review and save financial data</p>
         </div>
         <button
           onClick={reindex}
           disabled={reindexing}
           title="Generate semantic embeddings for all documents (requires OPENAI_API_KEY)"
-          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100 disabled:opacity-50"
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
         >
           {reindexing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
           Re-index
@@ -44,12 +44,12 @@ export default function DocumentsPage() {
       </div>
 
       {reindexMsg && (
-        <p className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
+        <p className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-800 rounded-xl px-3 py-2">
           <CheckCircle size={14} /> {reindexMsg}
         </p>
       )}
       {reindexErr && (
-        <p className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+        <p className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-800 rounded-xl px-3 py-2">
           <AlertCircle size={14} /> {reindexErr}
         </p>
       )}
@@ -57,7 +57,7 @@ export default function DocumentsPage() {
       <DocumentUploader onUploaded={() => setRefresh((n) => n + 1)} />
 
       <div>
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Your Documents</h2>
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Your Documents</h2>
         <DocumentList refresh={refresh} />
       </div>
     </div>

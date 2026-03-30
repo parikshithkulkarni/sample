@@ -163,7 +163,7 @@ export default function DocumentUploader({ onUploaded }: Props) {
         value={tags}
         onChange={(e) => setTags(e.target.value)}
         placeholder="Tags (comma separated, e.g. tax, 2024)"
-        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+        className="w-full border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
       />
 
       <div
@@ -172,7 +172,7 @@ export default function DocumentUploader({ onUploaded }: Props) {
         onDrop={handleDrop}
         onClick={() => fileRef.current?.click()}
         className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-colors ${
-          dragging ? 'border-sky-500 bg-sky-50' : 'border-gray-200 hover:border-sky-300'
+          dragging ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/30' : 'border-gray-200 hover:border-sky-300 dark:border-gray-700 dark:hover:border-sky-600'
         }`}
       >
         <input
@@ -185,33 +185,33 @@ export default function DocumentUploader({ onUploaded }: Props) {
         {uploading ? (
           <div className="flex flex-col items-center gap-2">
             <div className="w-8 h-8 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm text-gray-500">{progress || 'Uploading…'}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{progress || 'Uploading…'}</p>
           </div>
         ) : (
           <>
             <Upload size={28} className="mx-auto text-gray-400 mb-2" />
-            <p className="text-sm font-medium text-gray-600">Tap to upload or drag a file</p>
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Tap to upload or drag a file</p>
             <p className="text-xs text-gray-400 mt-1">PDF (max 3.5 MB) · TXT · MD (max 25 MB)</p>
           </>
         )}
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 text-red-600 text-sm">
+        <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-sm">
           <AlertCircle size={16} /> {error}
         </div>
       )}
 
       {result && (
-        <div className="bg-sky-50 border border-sky-100 rounded-2xl p-4 space-y-2">
-          <div className="flex items-center gap-2 text-sky-700 font-medium text-sm">
+        <div className="bg-sky-50 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-800 rounded-2xl p-4 space-y-2">
+          <div className="flex items-center gap-2 text-sky-700 dark:text-sky-300 font-medium text-sm">
             <CheckCircle size={16} /> {result.name} — {result.chunkCount} chunks indexed
           </div>
-          {result.summary && <p className="text-sm text-gray-600">{result.summary}</p>}
+          {result.summary && <p className="text-sm text-gray-600 dark:text-gray-400">{result.summary}</p>}
           {result.insights && result.insights.length > 0 && (
             <ul className="space-y-1">
               {result.insights.map((insight, i) => (
-                <li key={i} className="text-sm text-gray-700 flex gap-2">
+                <li key={i} className="text-sm text-gray-700 dark:text-gray-300 flex gap-2">
                   <span className="text-sky-500 shrink-0">•</span> {insight}
                 </li>
               ))}
