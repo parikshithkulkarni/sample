@@ -12,6 +12,13 @@ interface EmbedResponse {
   data: { embedding: number[]; index: number }[];
 }
 
+/**
+ * Generate embeddings for a batch of texts using OpenAI text-embedding-3-small.
+ * Results are sorted to match input order.
+ *
+ * @param texts - Array of text strings to embed
+ * @returns A 2D array of embedding vectors, one per input text
+ */
 export async function embedBatch(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
 
@@ -35,6 +42,12 @@ export async function embedBatch(texts: string[]): Promise<number[][]> {
   );
 }
 
+/**
+ * Generate an embedding vector for a single text string.
+ *
+ * @param text - The text string to embed
+ * @returns The embedding vector for the input text
+ */
 export async function embedOne(text: string): Promise<number[]> {
   const [vec] = await embedBatch([text]);
   return vec;

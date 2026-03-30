@@ -7,6 +7,9 @@ const anthropic = new Anthropic();
 
 /**
  * Find and parse the first JSON object in a string (handles Claude's prose/markdown wrapping).
+ *
+ * @param text - Raw text that may contain a JSON object surrounded by prose
+ * @returns The parsed JSON object, or null if no valid JSON found
  */
 export function findAndParseJSON(text: string): unknown | null {
   const anchors = JSON_ANCHORS.map(a => text.indexOf(a)).filter(i => i !== -1);
@@ -16,9 +19,13 @@ export function findAndParseJSON(text: string): unknown | null {
   return JSON.parse(text.slice(start, end + 1));
 }
 
-// Robustly parse a value Claude might return as "$450,000" / "450k" / 450000 / null
-// Normalize address for dedup: lowercase, strip trailing punctuation, collapse whitespace,
-// abbreviate common suffixes so "123 Main Street" == "123 main st"
+/**
+ * Normalize an address string for dedup comparison. Lowercases, strips zip codes,
+ * abbreviates common suffixes (Street->st, Avenue->ave, etc.), and collapses whitespace.
+ *
+ * @param addr - The raw address string to normalize
+ * @returns The normalized address string
+ */
 export function normalizeAddress(addr: string): string {
   return addr
     .toLowerCase()
@@ -29,13 +36,26 @@ export function normalizeAddress(addr: string): string {
     .replace(/[,\.#]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Check if two addresses refer to the same location using normalized comparison.
+ *
+ * @param a - First address string
+ * @param b - Second address string
+ * @returns True if the normalized addresses match or one is a prefix of the other
+ */
 export function addressesMatch(a: string, b: string): boolean {
   const na = normalizeAddress(a);
   const nb = normalizeAddress(b);
   return na === nb || na.startsWith(nb + ' ') || nb.startsWith(na + ' ');
 }
 
-// Normalize account name for dedup: lowercase, strip punctuation/corp suffixes, collapse spaces
+/**
+ * Normalize an account name for dedup comparison. Strips corporate suffixes
+ * (Inc, LLC, Corp, etc.), financial keywords, and punctuation, then lowercases.
+ *
+ * @param name - The raw account name to normalize
+ * @returns The normalized account name string
+ */
 export function normalizeAccountName(name: string): string {
   return name
     .toLowerCase()
@@ -46,12 +66,26 @@ export function normalizeAccountName(name: string): string {
     .trim();
 }
 
+/**
+ * Check if two account names refer to the same account using normalized comparison.
+ *
+ * @param a - First account name
+ * @param b - Second account name
+ * @returns True if the normalized names are identical
+ */
 export function accountNamesMatch(a: string, b: string): boolean {
   const na = normalizeAccountName(a);
   const nb = normalizeAccountName(b);
   return na === nb;
 }
 
+/**
+ * Robustly parse a numeric value that Claude might return in various formats
+ * (e.g., "$450,000", "450k", "2.5m", 450000, null).
+ *
+ * @param v - The value to parse (string, number, null, or undefined)
+ * @returns The parsed number, or null if the value is not a valid number
+ */
 export function parseNum(v: unknown): number | null {
   if (v == null) return null;
   if (typeof v === 'number') return isNaN(v) ? null : v;
@@ -62,12 +96,24 @@ export function parseNum(v: unknown): number | null {
   return isNaN(num) ? null : num * multiplier;
 }
 
+/**
+ * Build the Claude prompt for extracting financial data from a document.
+ * Includes instructions for accounts, properties, rental records, and tax data,
+ * along with existing items to avoid duplicates.
+ *
+ * @param docName - The name of the document being processed
+ * @param docText - The full text content of the document
+ * @param existingAccountsList - Formatted list of accounts already in the system
+ * @param existingPropertiesList - Formatted list of properties already in the system
+ * @returns The complete extraction prompt string
+ */
 export function buildExtractionPrompt(
   docName: string,
   docText: string,
   existingAccountsList: string,
   existingPropertiesList: string,
 ): string {
+  // ── Extraction prompt: instructs Claude on the exact JSON schema and field rules ──
   return `You are filling in a personal finance dashboard from a document. Extract financial data carefully.
 
 ## Finance page — Accounts
@@ -263,8 +309,15 @@ CORRECT: 450000   WRONG: "450,000" or "$450k"
 }`;
 }
 
+/**
+ * Extract financial data from a document using Claude and insert it into the database.
+ * Handles accounts, properties, rental records, and tax data with dedup logic.
+ *
+ * @param documentId - The UUID of the document to extract data from
+ * @returns Lists of inserted account names, property addresses, rental records, and tax data entries
+ */
 export async function extractAndInsert(documentId: string): Promise<{ accounts: string[]; properties: string[]; rentalRecords: string[]; taxData: string[] }> {
-  // Sample chunks spread evenly across the whole document
+  // ── Load document chunks and assemble full text ────────────────────────────
   const allChunks = await sql`
     SELECT content, chunk_index FROM chunks WHERE document_id = ${documentId} ORDER BY chunk_index
   `;
@@ -285,7 +338,7 @@ export async function extractAndInsert(documentId: string): Promise<{ accounts: 
     text = text.slice(0, half) + '\n\n[... middle section omitted for length ...]\n\n' + text.slice(-half);
   }
 
-  // Fetch what's already in the system so Claude can skip duplicates and understand context
+  // ── Fetch existing data for dedup context in the prompt ─────────────────────
   const existingAccounts = await sql`SELECT name, type, category, balance, currency FROM accounts ORDER BY name`;
   const existingProperties = await sql`SELECT address, market_value, mortgage_balance FROM properties ORDER BY address`;
 
@@ -299,6 +352,7 @@ export async function extractAndInsert(documentId: string): Promise<{ accounts: 
 
   const prompt = buildExtractionPrompt(docName, text, existingAccountsList, existingPropertiesList);
 
+  // ── Call Claude for extraction and parse the JSON response ─────────────────
   try {
     const msg = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
@@ -314,6 +368,7 @@ export async function extractAndInsert(documentId: string): Promise<{ accounts: 
     const insertedAccounts: string[] = [];
     const insertedProperties: string[] = [];
 
+    // ── Account dedup: normalized name matching + ON CONFLICT for atomicity ──
     const allAccounts = await sql`SELECT id, name FROM accounts` as { id: string; name: string }[];
     for (const acct of parsed.accounts ?? []) {
       if (!acct.name || !acct.type || !acct.category) continue;
@@ -322,13 +377,20 @@ export async function extractAndInsert(documentId: string): Promise<{ accounts: 
       // Use normalized name matching to prevent near-duplicate insertions
       const isDuplicate = allAccounts.some(a => accountNamesMatch(a.name, acct.name));
       if (isDuplicate) continue;
-      await sql`
+      // Use ON CONFLICT to handle concurrent extractions atomically
+      const inserted = await sql`
         INSERT INTO accounts (name, type, category, balance, currency, notes)
         VALUES (${acct.name}, ${acct.type}, ${category}, ${balance}, ${acct.currency ?? 'USD'}, ${acct.notes ?? null})
-      `;
-      insertedAccounts.push(acct.name);
+        ON CONFLICT (lower(name)) DO NOTHING
+        RETURNING name
+      ` as { name: string }[];
+      if (inserted.length > 0) {
+        insertedAccounts.push(acct.name);
+        allAccounts.push({ id: '', name: acct.name });
+      }
     }
 
+    // ── Property dedup: address normalization + update null fields ─────────
     for (const prop of parsed.properties ?? []) {
       if (!prop.address) continue;
       const purchase_price   = parseNum(prop.purchase_price);

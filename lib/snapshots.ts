@@ -1,6 +1,12 @@
 import { sql } from '@/lib/db';
 
-/** Upsert today's net worth snapshot from the current accounts table state. */
+/**
+ * Upsert today's net worth snapshot from the current accounts table state.
+ * Sums all asset and liability balances, then inserts or updates the daily snapshot row.
+ * Failures are silently ignored (best-effort).
+ *
+ * @returns Resolves when the snapshot has been written (or silently on error)
+ */
 export async function takeNetWorthSnapshot(): Promise<void> {
   try {
     const [row] = await sql`

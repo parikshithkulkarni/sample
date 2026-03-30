@@ -20,6 +20,11 @@ function sleep(ms: number): Promise<void> {
 
 /**
  * Retry a function with exponential backoff and optional timeout.
+ * Aborts and throws on timeout or after exhausting all attempts.
+ *
+ * @param fn - The async function to execute; receives an AbortSignal for timeout cancellation
+ * @param opts - Optional retry configuration (maxAttempts, baseDelayMs, timeoutMs, label)
+ * @returns The resolved value from `fn` on the first successful attempt
  */
 export async function withRetry<T>(
   fn: (signal: AbortSignal) => Promise<T>,

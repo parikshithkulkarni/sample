@@ -8,6 +8,8 @@ import { webSearch, formatWebResults } from '@/lib/web-search';
 import { SYSTEM_PROMPT } from '@/lib/prompts';
 import { sql } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { chatSchema, parseBody } from '@/lib/validators';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
 export const maxDuration = 60;
 export const runtime = 'nodejs'; // keep alive for background message saving
@@ -98,16 +100,21 @@ async function buildLiveContext(): Promise<string> {
 
 async function loadMentionedDocs(docIds: string[]): Promise<string> {
   if (docIds.length === 0) return '';
-  const parts: string[] = [];
-  for (const id of docIds) {
-    try {
-      const [docRow] = await sql`SELECT name FROM documents WHERE id = ${id}` as { name: string }[];
-      if (!docRow) continue;
-      const chunks = await sql`SELECT content FROM chunks WHERE document_id = ${id} ORDER BY chunk_index` as { content: string }[];
-      parts.push(`## Attached Document: "${docRow.name}"\n${chunks.map((c) => c.content).join('\n\n')}`);
-    } catch { /* skip */ }
-  }
-  return parts.join('\n\n---\n\n');
+  try {
+    const docs = await sql`SELECT id, name FROM documents WHERE id = ANY(${docIds}::uuid[])` as { id: string; name: string }[];
+    if (docs.length === 0) return '';
+    const chunks = await sql`SELECT document_id, content FROM chunks WHERE document_id = ANY(${docIds}::uuid[]) ORDER BY document_id, chunk_index` as { document_id: string; content: string }[];
+    const chunksByDoc = new Map<string, string[]>();
+    for (const c of chunks) {
+      const arr = chunksByDoc.get(c.document_id) ?? [];
+      arr.push(c.content);
+      chunksByDoc.set(c.document_id, arr);
+    }
+    return docs.map(d => {
+      const docChunks = chunksByDoc.get(d.id) ?? [];
+      return `## Attached Document: "${d.name}"\n${docChunks.join('\n\n')}`;
+    }).join('\n\n---\n\n');
+  } catch { return ''; }
 }
 
 // ── Dashboard tools ───────────────────────────────────────────────────────────
@@ -157,14 +164,14 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return new Response('Unauthorized', { status: 401 });
 
-  const body = await req.json();
-  const { messages, data: rawData } = body;
-  if (!Array.isArray(messages) || messages.length === 0) {
-    return Response.json({ error: 'At least one message is required' }, { status: 400 });
-  }
-  const data = (rawData ?? {}) as { mentionedDocIds?: string[]; sessionId?: string };
-  const mentionedDocIds: string[] = data.mentionedDocIds ?? [];
-  const incomingSessionId: string = data.sessionId ?? '';
+  const rl = checkRateLimit(`chat:${session.user?.email ?? 'anon'}`, 30, 60_000);
+  if (!rl.allowed) return rateLimitResponse(rl);
+
+  const parsed = await parseBody(req, chatSchema);
+  if (parsed instanceof Response) return parsed;
+  const { messages, data } = parsed;
+  const mentionedDocIds: string[] = data.mentionedDocIds;
+  const incomingSessionId: string = data.sessionId;
 
   const lastUser = [...messages].reverse().find((m: { role: string }) => m.role === 'user');
   const query: string = lastUser?.content ?? '';

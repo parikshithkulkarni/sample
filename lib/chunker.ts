@@ -51,8 +51,13 @@ function recursiveSplit(text: string, separators: string[], size: number): strin
 }
 
 /**
- * Split `text` into overlapping chunks of ~`chunkSize` characters.
- * Defaults: 2000 chars per chunk, 200 overlap.
+ * Split text into overlapping chunks using recursive character splitting.
+ * Tries paragraph breaks first, then sentences, then words, then raw characters.
+ *
+ * @param text - The input text to split into chunks
+ * @param chunkSize - Target maximum characters per chunk (default: 2000)
+ * @param overlap - Number of overlapping characters between consecutive chunks (default: 200)
+ * @returns An array of text chunks, each roughly `chunkSize` characters, filtered to exclude trivially short chunks
  */
 export function splitText(text: string, chunkSize = 2000, overlap = 200): string[] {
   const raw = recursiveSplit(text, SEPARATORS, chunkSize);

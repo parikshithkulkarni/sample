@@ -3,6 +3,7 @@ import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
 import { documentUploadSchema, paginationSchema, parseBody, parseQuery } from '@/lib/validators';
 import { logger } from '@/lib/logger';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
 export const maxDuration = 60;
 
@@ -51,6 +52,9 @@ export async function POST(req: Request) {
     await runMigrations();
   } catch { /* non-fatal */ }
 
+  const rl = checkRateLimit(`upload:${session.user?.email ?? 'anon'}`, 10, 60_000);
+  if (!rl.allowed) return rateLimitResponse(rl);
+
   try {
     const parsed = await parseBody(req, documentUploadSchema);
     if (parsed instanceof Response) return parsed;
@@ -92,7 +96,8 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Provide either base64 or chunks' }, { status: 400 });
     }
 
-    if (chunks.length === 0) return Response.json({ error: 'No text content found' }, { status: 400 });
+    chunks = chunks.filter(c => c.trim().length > 0);
+    if (chunks.length === 0) return Response.json({ error: 'No text content found in the uploaded file' }, { status: 400 });
 
     // Insert document
     const [docRow] = await sql`INSERT INTO documents (name, tags) VALUES (${fileName}, ${tags}) RETURNING id`;
@@ -108,21 +113,23 @@ export async function POST(req: Request) {
 
     const [doc] = await sql`SELECT id, name, tags, summary, insights, added_at FROM documents WHERE id = ${documentId}`;
 
-    // Generate and store embeddings in the background (non-blocking)
+    // Generate and store embeddings in the background (non-blocking, with retry)
     if (process.env.OPENAI_API_KEY) {
       (async () => {
         try {
+          const { withRetry } = await import('@/lib/retry');
           const { embedBatch } = await import('@/lib/embeddings');
           const rows = await sql`SELECT id, content FROM chunks WHERE document_id = ${documentId} ORDER BY chunk_index` as { id: string; content: string }[];
           const BATCH = 96;
           for (let i = 0; i < rows.length; i += BATCH) {
             const slice = rows.slice(i, i + BATCH);
-            const vectors = await embedBatch(slice.map((c) => c.content));
+            const vectors = await withRetry(() => embedBatch(slice.map((c) => c.content)), { maxAttempts: 3, label: 'embed-batch' });
             for (let j = 0; j < slice.length; j++) {
               await sql`UPDATE chunks SET embedding = ${`[${vectors[j].join(',')}]`}::vector WHERE id = ${slice[j].id}`;
             }
           }
-        } catch (err) { logger.error('Embedding generation failed (falling back to FTS)', err); }
+          logger.info(`Embeddings generated for document ${documentId} (${rows.length} chunks)`);
+        } catch (err) { logger.error(`Embedding generation failed for document ${documentId} — reindex via /api/documents/reindex`, err); }
       })();
     }
 

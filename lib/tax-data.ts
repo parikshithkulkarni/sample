@@ -139,6 +139,14 @@ function bracketTax(income: number, brackets: [number, number][]): number {
   return Math.round(tax);
 }
 
+/**
+ * Calculate US federal income tax liability for a given tax year.
+ * Applies progressive brackets, standard/itemized deductions, credits, and other taxes.
+ *
+ * @param d - The US tax data containing income, adjustments, deductions, credits, and payments
+ * @param year - The tax year (determines bracket thresholds and standard deduction amounts)
+ * @returns Computed tax summary including totalIncome, AGI, taxableIncome, incomeTax, totalTax, totalPayments, and refundOwed
+ */
 export function calcUS(d: UsData, year: number) {
   const inc = d.income;
   const totalIncome = inc.wages + inc.interest + inc.ordinary_dividends + inc.st_capital_gains + inc.lt_capital_gains + inc.ira_distributions + inc.pension_annuity + inc.rental_income + inc.business_income + inc.social_security * 0.85 + inc.other_income;
@@ -231,6 +239,14 @@ function indiaRebateLimit(year: number, regime: string): number {
   return 500000;
 }
 
+/**
+ * Calculate India income tax liability under old or new regime for a given financial year.
+ * Handles salary, house property, capital gains (STCG/LTCG), surcharge, and 4% cess.
+ *
+ * @param d - The India tax data containing income, deductions, taxes paid, and DTAA info
+ * @param year - The financial year start (e.g. 2024 for FY 2024-25); defaults to previous calendar year
+ * @returns Computed tax summary including totalIncome, taxableIncome, deductions, baseTax, totalPaid, and refundOwed
+ */
 export function calcIndia(d: IndiaData, year = new Date().getFullYear() - 1) {
   const inc = d.income;
   const netSalary = Math.max(0, inc.salary - inc.hra_exempt - inc.standard_deduction - inc.professional_tax);

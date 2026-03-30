@@ -39,6 +39,13 @@ function addSource(sources: TaxSources, path: string, acctName: string, type: Fi
   sources[path] = { label: acctName, type };
 }
 
+/**
+ * Sync tax return data by mapping account categories and rental records to tax fields.
+ * Creates or updates US and India tax returns for each relevant year found in account names.
+ *
+ * @param forceYear - Optional specific tax year to sync; if omitted, years are inferred from account names
+ * @returns Resolves when all tax returns have been upserted
+ */
 export async function syncTaxReturnsFromAccounts(forceYear?: number): Promise<void> {
   const accounts = await sql`SELECT name, type, category, balance, notes FROM accounts` as { name: string; type: string; category: string; balance: string; notes: string | null }[];
 
@@ -56,6 +63,10 @@ export async function syncTaxReturnsFromAccounts(forceYear?: number): Promise<vo
     const usSources: TaxSources = {};
     const indiaSources: TaxSources = {};
 
+    // ── Category → tax-field mapping ──────────────────────────────────────────
+    // Each account category maps to one or more dotted tax field paths
+    // (e.g. 'employment_income' → 'income.wages' for US, 'income.salary' for India).
+    // Balances are accumulated additively per field across all matching accounts.
     for (const acct of accounts) {
       const y = extractYear(acct.name);
       if (y && y !== taxYear) continue;
@@ -65,6 +76,7 @@ export async function syncTaxReturnsFromAccounts(forceYear?: number): Promise<vo
       const name = acct.name.toLowerCase();
 
       switch (acct.category) {
+        // ── Income categories ──
         case 'employment_income':
           usUpdates['income.wages'] = (usUpdates['income.wages'] ?? 0) + bal;
           addSource(usSources, 'income.wages', acct.name);
@@ -72,6 +84,7 @@ export async function syncTaxReturnsFromAccounts(forceYear?: number): Promise<vo
           addSource(indiaSources, 'income.salary', acct.name);
           break;
 
+        // ── Tax prepayment/withholding categories ──
         case 'tax_prepayment':
           if (name.includes('federal') || notes.includes('federal')) {
             usUpdates['payments.federal_withheld'] = (usUpdates['payments.federal_withheld'] ?? 0) + bal;
@@ -89,6 +102,7 @@ export async function syncTaxReturnsFromAccounts(forceYear?: number): Promise<vo
           }
           break;
 
+        // ── Retirement/adjustment categories ──
         case '401k':
           if (notes.includes('contribution') || notes.includes('box 12') || notes.includes('w-2')) {
             usUpdates['adjustments.k401_contributions'] = (usUpdates['adjustments.k401_contributions'] ?? 0) + bal;
@@ -103,6 +117,7 @@ export async function syncTaxReturnsFromAccounts(forceYear?: number): Promise<vo
           }
           break;
 
+        // ── Investment income categories ──
         case 'interest_income':
           usUpdates['income.interest'] = (usUpdates['income.interest'] ?? 0) + bal;
           addSource(usSources, 'income.interest', acct.name);
@@ -129,6 +144,7 @@ export async function syncTaxReturnsFromAccounts(forceYear?: number): Promise<vo
           addSource(usSources, 'income.business_income', acct.name);
           break;
 
+        // ── Equity/options categories ──
         case 'iso_options':
           if (notes.includes('exercise') || notes.includes('box 12')) {
             usUpdates['iso_amt.amt_adjustment'] = (usUpdates['iso_amt.amt_adjustment'] ?? 0) + bal;
@@ -136,6 +152,7 @@ export async function syncTaxReturnsFromAccounts(forceYear?: number): Promise<vo
           }
           break;
 
+        // ── Business/partnership categories ──
         case 'partnership_income':
         case 'business_interest':
           usUpdates['income.business_income'] = (usUpdates['income.business_income'] ?? 0) + bal;
@@ -144,6 +161,7 @@ export async function syncTaxReturnsFromAccounts(forceYear?: number): Promise<vo
           addSource(indiaSources, 'income.business_income', acct.name);
           break;
 
+        // ── Deduction categories ──
         case 'student_loan':
           // Student loan interest deduction (from 1098-E)
           if (notes.includes('interest') || notes.includes('1098')) {
@@ -154,7 +172,9 @@ export async function syncTaxReturnsFromAccounts(forceYear?: number): Promise<vo
       }
     }
 
-    // ── Rental records: income, mortgage, property tax, insurance ────────────
+    // ── Rental records → tax-field mapping ───────────────────────────────────
+    // Aggregates annual rent, mortgage, and property tax from rental_records
+    // and maps them to the corresponding US/India tax return fields.
     const rentalRows = await sql`
       SELECT
         COALESCE(SUM(rent_collected), 0)::numeric AS total_rent,

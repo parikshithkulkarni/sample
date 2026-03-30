@@ -27,6 +27,13 @@ function constantTimeEquals(a: string, b: string): boolean {
 // Resolve the JWT secret. Must match middleware.ts (which runs in Edge and
 // can only read env vars directly — no Node.js crypto).
 let _generatedSecret: string | undefined;
+
+/**
+ * Resolve the JWT signing secret for NextAuth sessions.
+ * Checks NEXTAUTH_SECRET, then ADMIN_PASSWORD, then generates an ephemeral secret.
+ *
+ * @returns The secret string used to sign and verify JWT tokens
+ */
 export function getSecret(): string {
   if (process.env.NEXTAUTH_SECRET) return process.env.NEXTAUTH_SECRET;
   if (process.env.ADMIN_PASSWORD) return process.env.ADMIN_PASSWORD;

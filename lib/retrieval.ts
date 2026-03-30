@@ -51,6 +51,10 @@ async function searchChunksVector(query: string, topK: number): Promise<Retrieve
 /**
  * Hybrid search: uses semantic vector similarity when OPENAI_API_KEY is set,
  * falls back to PostgreSQL full-text search otherwise.
+ *
+ * @param query - The search query string to match against document chunks
+ * @param topK - Maximum number of chunks to return (default: 12)
+ * @returns An array of matching chunks ranked by relevance
  */
 export async function searchChunks(query: string, topK = 12): Promise<RetrievedChunk[]> {
   if (!query.trim()) return [];
@@ -66,7 +70,12 @@ export async function searchChunks(query: string, topK = 12): Promise<RetrievedC
   }
 }
 
-/** Format retrieved chunks into a context block injected into the system prompt. */
+/**
+ * Format retrieved chunks into an XML context block for injection into the system prompt.
+ *
+ * @param chunks - The retrieved document chunks to format
+ * @returns A formatted string wrapped in `<context>` tags, or empty string if no chunks
+ */
 export function formatContext(chunks: RetrievedChunk[]): string {
   if (chunks.length === 0) return '';
   const lines = chunks.map((c) => `[doc: ${c.documentName}]\n${c.content}`);

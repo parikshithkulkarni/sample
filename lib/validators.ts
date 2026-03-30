@@ -224,7 +224,14 @@ export const paginationSchema = z.object({
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Parse request JSON with a Zod schema, returning 400 Response on failure */
+/**
+ * Parse request JSON body and validate it against a Zod schema.
+ * Returns the validated data on success or a 400 Response on failure.
+ *
+ * @param req - The incoming HTTP request containing JSON body
+ * @param schema - A Zod schema to validate the parsed body against
+ * @returns The validated data matching the schema, or a 400 Response with error details
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function parseBody<S extends z.ZodType<any, any, any>>(req: Request, schema: S): Promise<z.infer<S> | Response> {
   let body: unknown;
@@ -243,7 +250,14 @@ export async function parseBody<S extends z.ZodType<any, any, any>>(req: Request
   return result.data as z.infer<S>;
 }
 
-/** Parse query params with a Zod schema */
+/**
+ * Parse URL query parameters and validate them against a Zod schema.
+ * Returns the validated data on success or a 400 Response on failure.
+ *
+ * @param searchParams - The URL search parameters to parse
+ * @param schema - A Zod schema to validate the parsed parameters against
+ * @returns The validated data matching the schema, or a 400 Response with error details
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function parseQuery<S extends z.ZodType<any, any, any>>(searchParams: URLSearchParams, schema: S): z.infer<S> | Response {
   const raw = Object.fromEntries(searchParams.entries());

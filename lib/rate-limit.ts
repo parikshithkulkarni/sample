@@ -29,6 +29,15 @@ export interface RateLimitResult {
   resetMs: number;
 }
 
+/**
+ * Check whether a request is allowed under the sliding window rate limit.
+ * Records the request timestamp if allowed.
+ *
+ * @param key - Unique identifier for the rate limit bucket (e.g. IP address or user ID)
+ * @param maxRequests - Maximum number of requests allowed within the window
+ * @param windowMs - Sliding window duration in milliseconds
+ * @returns A result indicating whether the request is allowed, remaining quota, and reset time
+ */
 export function checkRateLimit(
   key: string,
   maxRequests: number,
@@ -60,6 +69,12 @@ export function checkRateLimit(
   };
 }
 
+/**
+ * Build a 429 Too Many Requests response with Retry-After and rate limit headers.
+ *
+ * @param result - The rate limit check result containing resetMs and remaining count
+ * @returns A 429 JSON Response with appropriate headers
+ */
 export function rateLimitResponse(result: RateLimitResult): Response {
   return Response.json(
     { error: 'Too many requests. Please try again later.' },

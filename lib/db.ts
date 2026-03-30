@@ -5,10 +5,16 @@ export const sql = neon(process.env.DATABASE_URL!);
 // ── Auto-migrations ───────────────────────────────────────────────────────────
 // Called automatically on startup via instrumentation.ts — no manual SQL needed.
 
+/**
+ * Run all idempotent schema migrations (CREATE TABLE IF NOT EXISTS, ADD COLUMN IF NOT EXISTS).
+ * Called automatically on startup via instrumentation.ts. Safe to call multiple times.
+ *
+ * @returns Resolves when all migrations have completed
+ */
 export async function runMigrations() {
   if (!process.env.DATABASE_URL) return;
 
-  // Documents — stores ingested files
+  // ── Migration step 1: Documents table — stores ingested files ──────────────
   await sql`
     CREATE TABLE IF NOT EXISTS documents (
       id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -20,7 +26,7 @@ export async function runMigrations() {
     )
   `;
 
-  // Chunks — text segments with auto-generated full-text search vector (no API key needed)
+  // ── Migration step 2: Chunks table — text segments with FTS vector ─────────
   await sql`
     CREATE TABLE IF NOT EXISTS chunks (
       id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -31,12 +37,12 @@ export async function runMigrations() {
     )
   `;
 
-  // GIN index for fast full-text search
+  // ── Migration step 3: GIN index for fast full-text search ──────────────────
   await sql`
     CREATE INDEX IF NOT EXISTS chunks_tsv_idx ON chunks USING GIN(tsv)
   `;
 
-  // Deadlines — tax dates, visa milestones, property deadlines
+  // ── Migration step 4: Deadlines table — tax dates, visa milestones ────────
   await sql`
     CREATE TABLE IF NOT EXISTS deadlines (
       id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -49,7 +55,7 @@ export async function runMigrations() {
     )
   `;
 
-  // Properties — rental real estate
+  // ── Migration step 5: Properties table — rental real estate ────────────────
   await sql`
     CREATE TABLE IF NOT EXISTS properties (
       id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -63,7 +69,7 @@ export async function runMigrations() {
     )
   `;
 
-  // Rental records — monthly P&L per property
+  // ── Migration step 6: Rental records table — monthly P&L per property ─────
   await sql`
     CREATE TABLE IF NOT EXISTS rental_records (
       id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -79,7 +85,7 @@ export async function runMigrations() {
     )
   `;
 
-  // Accounts — assets and liabilities for net worth
+  // ── Migration step 7: Accounts table — assets and liabilities ──────────────
   await sql`
     CREATE TABLE IF NOT EXISTS accounts (
       id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -93,15 +99,18 @@ export async function runMigrations() {
     )
   `;
 
-  // Add extracted_at to documents if not present (tracks which docs have had data saved)
+  // ── Migration step 8: Unique index on normalized account name for dedup ────
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS accounts_name_lower_idx ON accounts (lower(name))`;
+
+  // ── Migration step 9: Add extracted_at column to documents ─────────────────
   await sql`ALTER TABLE documents ADD COLUMN IF NOT EXISTS extracted_at TIMESTAMPTZ`;
 
-  // ── Semantic search (pgvector) ──────────────────────────────────────────────
+  // ── Migration step 10: Semantic search — pgvector extension + embedding column
   await sql`CREATE EXTENSION IF NOT EXISTS vector`;
   await sql`ALTER TABLE chunks ADD COLUMN IF NOT EXISTS embedding vector(512)`;
   await sql`CREATE INDEX IF NOT EXISTS chunks_embedding_idx ON chunks USING hnsw (embedding vector_cosine_ops)`;
 
-  // ── Chat history ────────────────────────────────────────────────────────────
+  // ── Migration step 11: Chat history tables (sessions + messages) ───────────
   await sql`
     CREATE TABLE IF NOT EXISTS chat_sessions (
       id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -121,7 +130,7 @@ export async function runMigrations() {
   `;
   await sql`CREATE INDEX IF NOT EXISTS chat_messages_session_idx ON chat_messages (session_id, created_at)`;
 
-  // ── Net worth snapshots ─────────────────────────────────────────────────────
+  // ── Migration step 12: Net worth snapshots table ───────────────────────────
   await sql`
     CREATE TABLE IF NOT EXISTS net_worth_snapshots (
       id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -134,7 +143,7 @@ export async function runMigrations() {
   `;
   await sql`CREATE INDEX IF NOT EXISTS net_worth_snapshots_date_idx ON net_worth_snapshots (snapshot_date DESC)`;
 
-  // Admin users — stores hashed credentials so no env vars needed after first setup
+  // ── Migration step 13: Admin users table — hashed credentials ──────────────
   await sql`
     CREATE TABLE IF NOT EXISTS admin_users (
       id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -144,7 +153,7 @@ export async function runMigrations() {
     )
   `;
 
-  // Tax returns — one row per (tax_year, country), JSONB for all fields
+  // ── Migration step 14: Tax returns table — one row per (year, country) ─────
   await sql`
     CREATE TABLE IF NOT EXISTS tax_returns (
       id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -155,7 +164,7 @@ export async function runMigrations() {
       UNIQUE (tax_year, country)
     )
   `;
-  // Add sources column to track where each field value came from
+  // ── Migration step 15: Add sources JSONB column to tax_returns ─────────────
   await sql`ALTER TABLE tax_returns ADD COLUMN IF NOT EXISTS sources JSONB NOT NULL DEFAULT '{}'`;
   await sql`CREATE INDEX IF NOT EXISTS tax_returns_year_idx ON tax_returns (tax_year DESC, country)`;
 }
@@ -171,6 +180,12 @@ const STANDARD_DEADLINES = [
   { title: 'India ITR Filing',       due_date: '2026-07-31', category: 'tax_india', notes: 'Income Tax Return India', is_recurring: true },
 ];
 
+/**
+ * Seed the deadlines table with standard US and India tax deadlines.
+ * Only inserts if the table is currently empty; silently skips on error.
+ *
+ * @returns Resolves when seeding is complete (or skipped)
+ */
 export async function seedDeadlines() {
   try {
     const existing = await sql`SELECT count(*)::int as n FROM deadlines`;

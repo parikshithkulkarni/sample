@@ -4,12 +4,16 @@ import { streamText } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { SCENARIO_SYSTEM_PROMPT } from '@/lib/prompts';
 import { scenarioSchema, parseBody } from '@/lib/validators';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return new Response('Unauthorized', { status: 401 });
+
+  const rl = checkRateLimit(`scenarios:${session.user?.email ?? 'anon'}`, 30, 60_000);
+  if (!rl.allowed) return rateLimitResponse(rl);
 
   const parsed = await parseBody(req, scenarioSchema);
   if (parsed instanceof Response) return parsed;

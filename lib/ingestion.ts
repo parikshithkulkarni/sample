@@ -9,6 +9,12 @@ export interface IngestResult {
 /**
  * Parse a file buffer, chunk it, and store in Postgres.
  * PostgreSQL auto-generates the tsvector from content — no embedding API needed.
+ *
+ * @param buffer - The raw file content as a Buffer
+ * @param filename - The original filename (used as the document name)
+ * @param mimeType - The MIME type of the file (e.g. 'application/pdf', 'text/plain')
+ * @param tags - Optional array of string tags to associate with the document
+ * @returns An object containing the new document's UUID and the number of chunks created
  */
 export async function ingestFile(
   buffer: Buffer,

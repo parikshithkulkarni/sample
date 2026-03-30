@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { extractAndInsert } from '@/lib/extract';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
 export const maxDuration = 60;
 
@@ -10,6 +11,9 @@ export async function POST(
 ) {
   const session = await getServerSession(authOptions);
   if (!session) return new Response('Unauthorized', { status: 401 });
+
+  const rl = checkRateLimit(`extract:${session.user?.email ?? 'anon'}`, 10, 60_000);
+  if (!rl.allowed) return rateLimitResponse(rl);
 
   const { id } = await params;
   try {
