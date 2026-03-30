@@ -90,14 +90,24 @@ DO NOT create accounts for:
 - Historical income that isn't a current balance
 These belong on the Tax Returns page, not Finance.
 
-ONLY create an account if it represents something with a CURRENT BALANCE that someone would track:
-- ✅ "Fidelity 401k" with balance $450,000 (real account)
-- ✅ "Chase Checking" with balance $12,000 (real account)
-- ✅ "Home Mortgage" with balance $380,000 (real debt)
-- ❌ "2024 Wages - Google" (this is income, not an account)
-- ❌ "2024 Federal Tax Withheld" (this is a tax record, not an account)
-- ❌ "Capital Gains 2024" (this is a transaction, not an account)
-- ❌ "Interest Income 2024" (this is income, not an account)
+ONLY create an account if it represents a REAL FINANCIAL ACCOUNT with a CURRENT BALANCE:
+- ✅ "Fidelity 401k" balance $450,000 — a retirement account
+- ✅ "Chase Checking" balance $12,000 — a bank account
+- ✅ "Robinhood Brokerage" balance $25,000 — an investment account
+- ✅ "PHH Mortgage - 1014 Terrace" balance $213,000 — a real debt
+- ❌ "2024 Wages - Google" — income, not an account
+- ❌ "Federal Tax Withheld" — tax record, not an account
+- ❌ "Capital Gains 2024" — a gain/loss, not an account
+- ❌ "Interest Income 2024" — income, not an account
+- ❌ "Robinhood Short-Term Sale Proceeds" — a transaction, not an account
+- ❌ "Mortgage Interest Paid YTD" — an expense, not an account
+- ❌ "Wash Sale Loss Disallowed" — a tax adjustment, not an account
+- ❌ "Health Insurance Expense" — an expense, not an account
+- ❌ "Subscription Fees 2025" — an expense, not an account
+- ❌ "Employer Health Coverage" — a benefit, not an account
+- ❌ "Realized Gains - Long Term" — a gain, not an account
+- ❌ "NVDA Short-Term Sales 2025" — a trade, not an account
+Put ALL income, gains, losses, expenses, withholdings into tax_data instead.
 
 ## Rentals page — Properties
 Each property has:
