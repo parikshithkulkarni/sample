@@ -93,7 +93,7 @@ export default function TaxReturnsPage() {
         body: JSON.stringify({ year, country }),
       });
       const updated = await res.json() as TaxReturn;
-      setTaxReturn(updated);
+      setTaxReturn({ ...updated, data: withDefaults(updated.data, country) });
     } finally {
       setSyncing(false);
     }
