@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
 import { accountSchema, paginationSchema, parseBody, parseQuery } from '@/lib/validators';
-import { normalizeAccountName } from '@/lib/extract';
+import { accountNamesMatch } from '@/lib/extract';
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
@@ -37,10 +37,9 @@ export async function POST(req: Request) {
   if (parsed instanceof Response) return parsed;
   const { name, type, category, balance, currency, notes } = parsed;
 
-  // Check for existing account with similar name (normalized match)
+  // Check for existing account with similar name (fuzzy normalized match)
   const existing = await sql`SELECT id, name, balance FROM accounts` as { id: string; name: string; balance: number }[];
-  const normalizedNew = normalizeAccountName(name);
-  const match = existing.find(a => normalizeAccountName(a.name) === normalizedNew);
+  const match = existing.find(a => accountNamesMatch(a.name, name));
 
   if (match) {
     // Update existing account instead of creating duplicate

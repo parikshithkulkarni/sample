@@ -23,24 +23,40 @@ export function normalizeAddress(addr: string): string {
   return addr
     .toLowerCase()
     .replace(/\b\d{5}(-\d{4})?\b/g, '')       // strip zip codes
+    .replace(/\b(apt|suite|ste|unit|#)\s*\w+/gi, '') // strip unit numbers
     .replace(/\bstreet\b/g, 'st').replace(/\bavenue\b/g, 'ave').replace(/\bboulevard\b/g, 'blvd')
     .replace(/\bdrive\b/g, 'dr').replace(/\broad\b/g, 'rd').replace(/\bcourt\b/g, 'ct')
     .replace(/\blane\b/g, 'ln').replace(/\bplace\b/g, 'pl').replace(/\bcircle\b/g, 'cir')
+    .replace(/\bterrace\b/g, 'trl').replace(/\bparkway\b/g, 'pkwy').replace(/\bhighway\b/g, 'hwy')
+    .replace(/\b(tx|ca|ny|fl|il|ga|oh|va|wa|nc|nj|pa|az|co|tn|md|mn|wi|or|sc|al|la|ky|ok|ct|ia|ms|ar|ks|nv|nm|ne|wv|id|hi|me|nh|ri|mt|de|sd|nd|ak|vt|wy|dc)\b/gi, '') // strip state abbreviations
     .replace(/[,\.#]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 export function addressesMatch(a: string, b: string): boolean {
   const na = normalizeAddress(a);
   const nb = normalizeAddress(b);
-  return na === nb || na.startsWith(nb + ' ') || nb.startsWith(na + ' ');
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  // Prefix match (one has city/state, the other doesn't)
+  if (na.startsWith(nb + ' ') || nb.startsWith(na + ' ')) return true;
+  // Substring match (one is contained in the other)
+  if (na.length >= 8 && nb.length >= 8) {
+    if (na.includes(nb) || nb.includes(na)) return true;
+  }
+  return false;
 }
 
-// Normalize account name for dedup: lowercase, strip punctuation/corp suffixes, collapse spaces
+// Normalize account name for dedup: lowercase, strip punctuation/corp suffixes, account numbers, years
 export function normalizeAccountName(name: string): string {
   return name
     .toLowerCase()
+    .replace(/\b20\d{2}\b/g, '')                    // strip years
+    .replace(/\b\d{6,}\b/g, '')                      // strip account numbers (6+ digits)
+    .replace(/\(account[^)]*\)/gi, '')               // strip "(Account ...)" parentheticals
+    .replace(/\baccount\s*#?\s*\w+/gi, '')           // strip "Account #XYZ"
     .replace(/\b(inc|llc|corp|ltd|co|na|n\.a\.)\b\.?/g, '')
-    .replace(/\b(account|accounts|bank|financial|investments?|services?)\b/g, '')
+    .replace(/\b(account|accounts|bank|financial|investments?|services?|updated|new|current)\b/g, '')
+    .replace(/\s*[-–—]\s*(updated|new|old|current|ytd|year.to.date)$/i, '')
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -49,7 +65,14 @@ export function normalizeAccountName(name: string): string {
 export function accountNamesMatch(a: string, b: string): boolean {
   const na = normalizeAccountName(a);
   const nb = normalizeAccountName(b);
-  return na === nb;
+  if (!na || !nb) return false;
+  // Exact match after normalization
+  if (na === nb) return true;
+  // One contains the other (handles "Fidelity 401k" vs "Fidelity 401k Contribution 2024")
+  if (na.length >= 4 && nb.length >= 4) {
+    if (na.includes(nb) || nb.includes(na)) return true;
+  }
+  return false;
 }
 
 export function parseNum(v: unknown): number | null {
@@ -314,50 +337,55 @@ export async function extractAndInsert(documentId: string): Promise<{ accounts: 
     const insertedAccounts: string[] = [];
     const insertedProperties: string[] = [];
 
-    const allAccounts = await sql`SELECT id, name FROM accounts` as { id: string; name: string }[];
+    const allAccounts = await sql`SELECT id, name, balance FROM accounts` as { id: string; name: string; balance: number }[];
     for (const acct of parsed.accounts ?? []) {
       if (!acct.name || !acct.type || !acct.category) continue;
       const category = acct.category.toLowerCase().replace(/[^a-z0-9_]/g, '_') || 'other';
       const balance = parseNum(acct.balance) ?? 0;
-      // Use normalized name matching to prevent near-duplicate insertions
-      const isDuplicate = allAccounts.some(a => accountNamesMatch(a.name, acct.name));
-      if (isDuplicate) continue;
+      // Upsert: update if match found, insert if new
+      const match = allAccounts.find(a => accountNamesMatch(a.name, acct.name));
+      if (match) {
+        // Only update if new balance is higher (more recent/accurate)
+        if (balance > Number(match.balance)) {
+          await sql`UPDATE accounts SET balance = ${balance}, category = ${category}, notes = ${acct.notes ?? null}, updated_at = NOW() WHERE id = ${match.id}`;
+          insertedAccounts.push(`${acct.name} (updated)`);
+        }
+        continue;
+      }
       await sql`
         INSERT INTO accounts (name, type, category, balance, currency, notes)
         VALUES (${acct.name}, ${acct.type}, ${category}, ${balance}, ${acct.currency ?? 'USD'}, ${acct.notes ?? null})
       `;
+      allAccounts.push({ id: 'new', name: acct.name, balance }); // prevent dupes within batch
       insertedAccounts.push(acct.name);
     }
 
+    const allProps = await sql`SELECT id, address, market_value, mortgage_balance, purchase_price FROM properties` as { id: string; address: string; market_value: number | null; mortgage_balance: number | null; purchase_price: number | null }[];
     for (const prop of parsed.properties ?? []) {
       if (!prop.address) continue;
       const purchase_price   = parseNum(prop.purchase_price);
       const market_value     = parseNum(prop.market_value);
       const mortgage_balance = parseNum(prop.mortgage_balance);
-      const allProps = await sql`SELECT id, address, market_value, mortgage_balance, purchase_price FROM properties` as { id: string; address: string; market_value: number | null; mortgage_balance: number | null; purchase_price: number | null }[];
-      const existing = allProps.filter(p => addressesMatch(p.address, prop.address));
-      if (existing.length > 0) {
-        // Update only fields that were null/zero and now have real values
-        const row = existing[0];
-        const needsUpdate = (!row.market_value && market_value) || (!row.mortgage_balance && mortgage_balance) || (!row.purchase_price && purchase_price);
-        if (needsUpdate) {
-          await sql`
-            UPDATE properties SET
-              purchase_price   = COALESCE(${purchase_price},   purchase_price),
-              market_value     = COALESCE(${market_value},     market_value),
-              mortgage_balance = COALESCE(${mortgage_balance}, mortgage_balance),
-              purchase_date    = COALESCE(${prop.purchase_date ?? null}, purchase_date),
-              notes            = COALESCE(${prop.notes ?? null}, notes)
-            WHERE id = ${row.id}
-          `;
-          insertedProperties.push(`${prop.address} (updated)`);
-        }
+      const match = allProps.find(p => addressesMatch(p.address, prop.address));
+      if (match) {
+        // Always upsert — fill nulls and update with newer values
+        await sql`
+          UPDATE properties SET
+            purchase_price   = COALESCE(${purchase_price},   purchase_price),
+            market_value     = COALESCE(${market_value},     market_value),
+            mortgage_balance = COALESCE(${mortgage_balance}, mortgage_balance),
+            purchase_date    = COALESCE(${prop.purchase_date ?? null}, purchase_date),
+            notes            = COALESCE(${prop.notes ?? null}, notes)
+          WHERE id = ${match.id}
+        `;
+        insertedProperties.push(`${prop.address} (updated)`);
         continue;
       }
       await sql`
         INSERT INTO properties (address, purchase_price, purchase_date, market_value, mortgage_balance, notes)
         VALUES (${prop.address}, ${purchase_price}, ${prop.purchase_date ?? null}, ${market_value}, ${mortgage_balance}, ${prop.notes ?? null})
       `;
+      allProps.push({ id: 'new', address: prop.address, market_value, mortgage_balance, purchase_price }); // prevent dupes within batch
       insertedProperties.push(prop.address);
     }
 
