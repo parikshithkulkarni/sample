@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
+import { accountPatchSchema, parseBody } from '@/lib/validators';
 
 export async function PATCH(
   req: Request,
@@ -10,7 +11,9 @@ export async function PATCH(
   if (!session) return new Response('Unauthorized', { status: 401 });
 
   const { id } = await params;
-  const { balance, notes } = (await req.json()) as { balance?: number; notes?: string };
+  const parsed = await parseBody(req, accountPatchSchema);
+  if (parsed instanceof Response) return parsed;
+  const { balance, notes } = parsed;
 
   const [row] = await sql`
     UPDATE accounts

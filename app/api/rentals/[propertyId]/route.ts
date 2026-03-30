@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
+import { propertyPatchSchema, parseBody } from '@/lib/validators';
 
 export async function GET(
   _req: Request,
@@ -23,15 +24,9 @@ export async function PATCH(
   if (!session) return new Response('Unauthorized', { status: 401 });
 
   const { propertyId } = await params;
-  const { address, purchase_price, purchase_date, market_value, mortgage_balance, notes } =
-    (await req.json()) as {
-      address?: string;
-      purchase_price?: number | null;
-      purchase_date?: string | null;
-      market_value?: number | null;
-      mortgage_balance?: number | null;
-      notes?: string | null;
-    };
+  const parsed = await parseBody(req, propertyPatchSchema);
+  if (parsed instanceof Response) return parsed;
+  const { address, purchase_price, purchase_date, market_value, mortgage_balance, notes } = parsed;
 
   const [row] = await sql`
     UPDATE properties SET

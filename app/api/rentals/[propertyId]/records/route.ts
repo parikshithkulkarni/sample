@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
+import { rentalRecordSchema, parseBody } from '@/lib/validators';
 
 export async function GET(
   req: Request,
@@ -16,7 +17,7 @@ export async function GET(
   const rows = year
     ? await sql`
         SELECT * FROM rental_records
-        WHERE property_id = ${propertyId} AND year = ${parseInt(year)}
+        WHERE property_id = ${propertyId} AND year = ${parseInt(year, 10)}
         ORDER BY year DESC, month DESC
       `
     : await sql`
@@ -36,23 +37,9 @@ export async function POST(
   if (!session) return new Response('Unauthorized', { status: 401 });
 
   const { propertyId } = await params;
-  const {
-    year,
-    month,
-    rent_collected = 0,
-    vacancy_days = 0,
-    mortgage_pmt = 0,
-    expenses = {},
-    notes,
-  } = (await req.json()) as {
-    year: number;
-    month: number;
-    rent_collected?: number;
-    vacancy_days?: number;
-    mortgage_pmt?: number;
-    expenses?: Record<string, number>;
-    notes?: string;
-  };
+  const parsed = await parseBody(req, rentalRecordSchema);
+  if (parsed instanceof Response) return parsed;
+  const { year, month, rent_collected, vacancy_days, mortgage_pmt, expenses, notes } = parsed;
 
   const expensesJson = JSON.stringify(expenses);
 

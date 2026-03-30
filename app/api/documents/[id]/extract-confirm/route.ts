@@ -2,6 +2,8 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
 import { runMigrations } from '@/lib/db';
+import { extractConfirmSchema, parseBody } from '@/lib/validators';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -17,10 +19,9 @@ export async function POST(
   await runMigrations();
   const { id } = await params;
 
-  const { accounts, properties } = (await req.json()) as {
-    accounts: { name: string; type: string; category: string; balance: number | null; currency: string; notes?: string }[];
-    properties: { address: string; purchase_price: number | null; purchase_date: string | null; market_value: number | null; mortgage_balance: number | null; monthly_rent: number | null; notes?: string }[];
-  };
+  const parsed = await parseBody(req, extractConfirmSchema);
+  if (parsed instanceof Response) return parsed;
+  const { accounts, properties } = parsed;
 
   const savedAccounts: string[] = [];
   const savedProperties: string[] = [];
@@ -81,12 +82,14 @@ export async function POST(
   }
 
   // Mark document as extracted
-  await sql`UPDATE documents SET extracted_at = NOW() WHERE id = ${id}`.catch(() => {});
+  await sql`UPDATE documents SET extracted_at = NOW() WHERE id = ${id}`.catch(
+    (err: unknown) => logger.error('Failed to mark document as extracted', err, { documentId: id }),
+  );
 
   // Auto-sync tax returns from the newly saved accounts (fire-and-forget)
   import('@/lib/tax-returns').then(({ syncTaxReturnsFromAccounts }) => {
-    syncTaxReturnsFromAccounts().catch(() => {});
-  }).catch(() => {});
+    syncTaxReturnsFromAccounts().catch((err: unknown) => logger.error('Failed to sync tax returns', err));
+  }).catch((err: unknown) => logger.error('Failed to import tax-returns module', err));
 
   return Response.json({ saved: { accounts: savedAccounts, properties: savedProperties } });
 }

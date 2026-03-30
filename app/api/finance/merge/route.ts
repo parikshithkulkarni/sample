@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
+import { mergeSchema, parseBody } from '@/lib/validators';
 
 // POST /api/finance/merge
 // Body: { keepId: string, deleteIds: string[] }
@@ -9,8 +10,9 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return new Response('Unauthorized', { status: 401 });
 
-  const { keepId, deleteIds } = (await req.json()) as { keepId: string; deleteIds: string[] };
-  if (!keepId || !deleteIds?.length) return Response.json({ error: 'keepId and deleteIds required' }, { status: 400 });
+  const parsed = await parseBody(req, mergeSchema);
+  if (parsed instanceof Response) return parsed;
+  const { keepId, deleteIds } = parsed;
 
   const ids = [keepId, ...deleteIds];
   const rows = await sql`SELECT * FROM accounts WHERE id = ANY(${ids}::uuid[])` as {
@@ -24,13 +26,16 @@ export async function POST(req: Request) {
   const totalBalance = rows.reduce((s, r) => s + Number(r.balance), 0);
   const mergedNotes = rows.map(r => r.notes).filter(Boolean).join('; ') || keep.notes;
 
-  await sql`UPDATE accounts SET balance = ${totalBalance}, notes = ${mergedNotes} WHERE id = ${keepId}`;
-  for (const delId of deleteIds) {
-    await sql`DELETE FROM accounts WHERE id = ${delId}`;
+  const deleteIdsOnly = deleteIds.filter(id => id !== keepId);
+  if (deleteIdsOnly.length > 0) {
+    await sql`DELETE FROM accounts WHERE id = ANY(${deleteIdsOnly}::uuid[])`;
   }
+  await sql`UPDATE accounts SET balance = ${totalBalance}, notes = ${mergedNotes} WHERE id = ${keepId}`;
 
   const { takeNetWorthSnapshot } = await import('@/lib/snapshots');
-  takeNetWorthSnapshot().catch(() => {});
+  takeNetWorthSnapshot().catch((err: unknown) => {
+    console.error('[finance/merge] Failed to take net worth snapshot:', err);
+  });
 
   const [updated] = await sql`SELECT * FROM accounts WHERE id = ${keepId}`;
   return Response.json(updated);

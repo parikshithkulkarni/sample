@@ -2,14 +2,16 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { ingestFile } from '@/lib/ingestion';
 import { sql } from '@/lib/db';
+import { captureSchema, parseBody } from '@/lib/validators';
 
 // POST /api/capture — quick note capture
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return new Response('Unauthorized', { status: 401 });
 
-  const { text, tags = [] } = (await req.json()) as { text: string; tags?: string[] };
-  if (!text?.trim()) return Response.json({ error: 'text is required' }, { status: 400 });
+  const parsed = await parseBody(req, captureSchema);
+  if (parsed instanceof Response) return parsed;
+  const { text, tags } = parsed;
 
   try {
     const { runMigrations } = await import('@/lib/db');

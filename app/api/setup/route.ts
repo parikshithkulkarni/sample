@@ -8,12 +8,16 @@ function hashPassword(password: string): string {
 }
 
 async function countAdmins(): Promise<number> {
+  if (!process.env.DATABASE_URL) return 0;
   try {
-    if (!process.env.DATABASE_URL) return 0;
     const rows = await sql`SELECT count(*)::int AS n FROM admin_users`;
     return (rows[0] as { n: number }).n;
-  } catch {
-    return 0;
+  } catch (err) {
+    // Table may not exist yet during first setup — that's fine (0 admins).
+    // Re-throw unexpected errors to prevent duplicate admin creation.
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes('does not exist') || message.includes('relation')) return 0;
+    throw err;
   }
 }
 
@@ -113,8 +117,9 @@ export async function POST(request: Request) {
     `;
     return Response.json({ ok: true });
   } catch (e) {
+    console.error('[setup] Admin account creation failed:', e);
     return Response.json(
-      { error: e instanceof Error ? e.message : 'Failed to create account' },
+      { error: 'Failed to create admin account' },
       { status: 500 },
     );
   }

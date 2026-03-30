@@ -35,8 +35,12 @@ const MOCK_SESSION = {
 
 describe('GET /api/chat/sessions', () => {
   beforeEach(() => {
+    mockSql.mockReset();
     mockAuth.mockResolvedValue({ user: { name: 'Test' } } as never);
-    mockSql.mockResolvedValue([MOCK_SESSION] as never);
+    // count + data queries
+    mockSql
+      .mockResolvedValueOnce([{ total: 1 }] as never)
+      .mockResolvedValueOnce([MOCK_SESSION] as never);
   });
 
   it('returns 401 when unauthenticated', async () => {
@@ -45,24 +49,31 @@ describe('GET /api/chat/sessions', () => {
     expect(res.status).toBe(401);
   });
 
-  it('returns list of sessions as JSON', async () => {
+  it('returns paginated sessions', async () => {
     const res = await sessionsGET(new Request('http://localhost/api/chat/sessions'));
     expect(res.status).toBe(200);
-    const data = await res.json();
-    expect(Array.isArray(data)).toBe(true);
-    expect(data[0].title).toBe('Analyzing my 401k');
-    expect(data[0].message_count).toBe(4);
+    const body = await res.json();
+    expect(body.total).toBe(1);
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.data[0].title).toBe('Analyzing my 401k');
+    expect(body.data[0].message_count).toBe(4);
   });
 
-  it('returns empty array when no sessions exist', async () => {
-    mockSql.mockResolvedValue([] as never);
+  it('returns empty data when no sessions exist', async () => {
+    mockSql.mockReset();
+    mockSql
+      .mockResolvedValueOnce([{ total: 0 }] as never)
+      .mockResolvedValueOnce([] as never);
     const res = await sessionsGET(new Request('http://localhost/api/chat/sessions'));
-    expect(await res.json()).toEqual([]);
+    const body = await res.json();
+    expect(body.data).toEqual([]);
+    expect(body.total).toBe(0);
   });
 });
 
 describe('POST /api/chat/sessions', () => {
   beforeEach(() => {
+    mockSql.mockReset();
     mockAuth.mockResolvedValue({ user: { name: 'Test' } } as never);
     mockSql.mockResolvedValue([MOCK_SESSION] as never);
   });
@@ -109,6 +120,7 @@ describe('POST /api/chat/sessions', () => {
 
 describe('GET /api/chat/sessions/[id]', () => {
   beforeEach(() => {
+    mockSql.mockReset();
     mockAuth.mockResolvedValue({ user: { name: 'Test' } } as never);
     // First sql call returns session, second returns messages
     mockSql
@@ -155,6 +167,7 @@ describe('GET /api/chat/sessions/[id]', () => {
 
 describe('DELETE /api/chat/sessions/[id]', () => {
   beforeEach(() => {
+    mockSql.mockReset();
     mockAuth.mockResolvedValue({ user: { name: 'Test' } } as never);
     mockSql.mockResolvedValue([] as never);
   });

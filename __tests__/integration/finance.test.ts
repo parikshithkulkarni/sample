@@ -32,15 +32,6 @@ import { PATCH as financePATCH, DELETE as financeDELETE } from '@/app/api/financ
 const mockSql = vi.mocked(sql);
 const mockAuth = vi.mocked(getServerSession);
 
-// Helper to build a fake Request
-function makeReq(body?: unknown): Request {
-  return new Request('http://localhost/api/finance', {
-    method: body ? 'POST' : 'GET',
-    headers: { 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-}
-
 const MOCK_ACCOUNT = {
   id: 'acct-1',
   name: 'Fidelity 401k',
@@ -54,34 +45,44 @@ const MOCK_ACCOUNT = {
 
 describe('GET /api/finance', () => {
   beforeEach(() => {
+    mockSql.mockReset();
     mockAuth.mockResolvedValue({ user: { name: 'Test' } } as never);
-    mockSql.mockResolvedValue([MOCK_ACCOUNT] as never);
+    // count query, then data query (runMigrations is its own mock, not sql)
+    mockSql
+      .mockResolvedValueOnce([{ total: 1 }] as never)
+      .mockResolvedValueOnce([MOCK_ACCOUNT] as never);
   });
 
   it('returns 401 when unauthenticated', async () => {
     mockAuth.mockResolvedValue(null as never);
-    const res = await financeGET(makeReq());
+    const res = await financeGET(new Request('http://localhost/api/finance'));
     expect(res.status).toBe(401);
   });
 
-  it('returns list of accounts as JSON', async () => {
-    const res = await financeGET(makeReq());
+  it('returns paginated accounts', async () => {
+    const res = await financeGET(new Request('http://localhost/api/finance'));
     expect(res.status).toBe(200);
-    const data = await res.json();
-    expect(Array.isArray(data)).toBe(true);
-    expect(data[0].name).toBe('Fidelity 401k');
+    const body = await res.json();
+    expect(body.total).toBe(1);
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.data[0].name).toBe('Fidelity 401k');
   });
 
-  it('returns empty array when no accounts', async () => {
-    mockSql.mockResolvedValue([] as never);
-    const res = await financeGET(makeReq());
-    const data = await res.json();
-    expect(data).toEqual([]);
+  it('returns empty data when no accounts', async () => {
+    mockSql.mockReset();
+    mockSql
+      .mockResolvedValueOnce([{ total: 0 }] as never)
+      .mockResolvedValueOnce([] as never);
+    const res = await financeGET(new Request('http://localhost/api/finance'));
+    const body = await res.json();
+    expect(body.data).toEqual([]);
+    expect(body.total).toBe(0);
   });
 });
 
 describe('POST /api/finance', () => {
   beforeEach(() => {
+    mockSql.mockReset();
     mockAuth.mockResolvedValue({ user: { name: 'Test' } } as never);
     mockSql.mockResolvedValue([MOCK_ACCOUNT] as never);
   });
@@ -116,10 +117,20 @@ describe('POST /api/finance', () => {
     // sql was called — verify it included 'USD' as currency default
     expect(mockSql).toHaveBeenCalled();
   });
+
+  it('returns 400 for invalid input', async () => {
+    const res = await financePOST(new Request('http://localhost/api/finance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Test', type: 'invalid', category: 'other', balance: 100 }),
+    }));
+    expect(res.status).toBe(400);
+  });
 });
 
 describe('PATCH /api/finance/[id]', () => {
   beforeEach(() => {
+    mockSql.mockReset();
     mockAuth.mockResolvedValue({ user: { name: 'Test' } } as never);
     mockSql.mockResolvedValue([{ ...MOCK_ACCOUNT, balance: 300000 }] as never);
   });
@@ -154,6 +165,7 @@ describe('PATCH /api/finance/[id]', () => {
 
 describe('DELETE /api/finance/[id]', () => {
   beforeEach(() => {
+    mockSql.mockReset();
     mockAuth.mockResolvedValue({ user: { name: 'Test' } } as never);
     mockSql.mockResolvedValue([] as never);
   });

@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
+import { rentalMergeSchema, parseBody } from '@/lib/validators';
 
 // POST /api/rentals/merge
 // Body: { keepId: string, deleteIds: string[] }
@@ -9,8 +10,9 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return new Response('Unauthorized', { status: 401 });
 
-  const { keepId, deleteIds } = (await req.json()) as { keepId: string; deleteIds: string[] };
-  if (!keepId || !deleteIds?.length) return Response.json({ error: 'keepId and deleteIds required' }, { status: 400 });
+  const parsed = await parseBody(req, rentalMergeSchema);
+  if (parsed instanceof Response) return parsed;
+  const { keepId, deleteIds } = parsed;
 
   // Fetch all rows
   const ids = [keepId, ...deleteIds];
