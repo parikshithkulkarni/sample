@@ -148,6 +148,17 @@ export const extractConfirmSchema = z.object({
     monthly_rent: z.number().nullable().optional(),
     notes: z.string().optional(),
   })).default([]),
+  rental_records: z.array(z.object({
+    address: z.string(),
+    year: z.number().int(),
+    month: z.number().int().min(1).max(12),
+    rent_collected: z.number().default(0),
+    mortgage_pmt: z.number().default(0),
+    vacancy_days: z.number().int().default(0),
+    expenses: z.record(z.string(), z.number()).default({}),
+    notes: z.string().optional(),
+    _include: z.boolean().default(true),
+  })).default([]),
 });
 
 // ── Claude extraction output validation ──────────────────────────────────────
@@ -171,6 +182,16 @@ export const extractionOutputSchema = z.object({
     purchase_date: z.string().nullable().optional(),
     market_value: z.unknown().optional(),
     mortgage_balance: z.unknown().optional(),
+    notes: z.string().optional(),
+  })).default([]),
+  rental_records: z.array(z.object({
+    address: z.string(),
+    year: z.number().int(),
+    month: z.number().int().min(1).max(12),
+    rent_collected: z.number().default(0),
+    mortgage_pmt: z.number().default(0),
+    vacancy_days: z.number().int().default(0),
+    expenses: z.record(z.string(), z.number()).default({}),
     notes: z.string().optional(),
   })).default([]),
 });

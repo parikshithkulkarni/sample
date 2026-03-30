@@ -62,33 +62,13 @@ export function parseNum(v: unknown): number | null {
   return isNaN(num) ? null : num * multiplier;
 }
 
-export async function extractAndInsert(documentId: string): Promise<{ accounts: string[]; properties: string[] }> {
-  // Sample chunks spread evenly across the whole document
-  const allChunks = await sql`
-    SELECT content, chunk_index FROM chunks WHERE document_id = ${documentId} ORDER BY chunk_index
-  `;
-  if ((allChunks as unknown[]).length === 0) return { accounts: [], properties: [] };
-
-  const [docRow] = await sql`SELECT name FROM documents WHERE id = ${documentId}`;
-  const docName = (docRow as { name: string }).name;
-
-  // Use the full document — no sampling, no cropping
-  const rows = allChunks as { content: string; chunk_index: number }[];
-  const text = rows.map(r => r.content).join('\n\n');
-
-  // Fetch what's already in the system so Claude can skip duplicates and understand context
-  const existingAccounts = await sql`SELECT name, type, category, balance, currency FROM accounts ORDER BY name`;
-  const existingProperties = await sql`SELECT address, market_value, mortgage_balance FROM properties ORDER BY address`;
-
-  const existingAccountsList = (existingAccounts as { name: string; type: string; category: string; balance: number; currency: string }[])
-    .map(a => `  - "${a.name}" (${a.type}, ${a.category}, balance: ${a.balance} ${a.currency})`)
-    .join('\n') || '  (none yet)';
-
-  const existingPropertiesList = (existingProperties as { address: string; market_value: number | null; mortgage_balance: number | null }[])
-    .map(p => `  - "${p.address}"`)
-    .join('\n') || '  (none yet)';
-
-  const prompt = `You are filling in a personal finance dashboard from a document. Extract EVERYTHING financially useful — be aggressive.
+export function buildExtractionPrompt(
+  docName: string,
+  docText: string,
+  existingAccountsList: string,
+  existingPropertiesList: string,
+): string {
+  return `You are filling in a personal finance dashboard from a document. Extract EVERYTHING financially useful — be aggressive.
 
 ## Finance page — Accounts
 Each account has:
@@ -111,20 +91,41 @@ Each property has:
 - mortgage_balance: remaining mortgage owed as number or null
 - notes: optional string
 
+## Rental Records — Monthly P&L per property
+If the document contains rental income/expense data (1098, 1099-MISC, property management statements, lease agreements, etc.), extract monthly or annual rental records.
+Each rental_record has:
+- address: the property address this record belongs to (must match a property above)
+- year: integer (e.g. 2024)
+- month: integer 1-12 (if only annual data, use month 12 for the full year total)
+- rent_collected: monthly rent income as number (0 if unknown)
+- mortgage_pmt: monthly mortgage payment as number (0 if unknown)
+- vacancy_days: integer (0 if unknown)
+- expenses: object with any of these keys (all numbers, 0 if not applicable):
+    property_tax, insurance, maintenance, repairs, hoa, management, utilities,
+    landscaping, pest_control, cleaning, advertising, legal, accounting,
+    capital_improvements, supplies, travel, other
+- notes: optional string
+
+### What to extract as rental records:
+- 1098 Mortgage Interest Statement → mortgage interest = mortgage_pmt (monthly ÷ 12 if annual), property_tax from Box 10
+- 1099-MISC Box 1 (Rents) → rent_collected
+- Property management statements → rent_collected, management fees, maintenance, repairs
+- Insurance declarations → insurance amount
+- HOA statements → hoa amount
+- Lease agreements → rent_collected amount, property address
+- Schedule E data → rental income, expenses by category
+
 ## Tax & Income Documents (W-2, 1099, pay stubs, K-1, Schedule K, etc.)
 These contain VERY useful data — extract all of it:
 - W-2 Box 1 wages → { name: "[Year] Wages - [Employer Name]", type: "asset", category: "employment_income", balance: <wages>, notes: "Gross wages per W-2" }
-- W-2 Box 2 federal tax withheld → { name: "[Year] Federal Tax Withheld", type: "asset", category: "tax_prepayment", balance: <amount>, notes: "Federal income tax withheld" }
-- W-2 Box 12 Code D (traditional 401k) → { name: "[Employer] 401k", type: "asset", category: "401k", balance: <contribution>, notes: "401k contribution per W-2 Box 12D" }
-- W-2 Box 12 Code W (HSA) → { name: "HSA", type: "asset", category: "hsa", balance: <amount> }
-- W-2 Box 12 Code V (ISO exercise income) → category: "iso_options"
-- W-2 Box 17 state tax withheld → { name: "[Year] [State] Tax Withheld", type: "asset", category: "tax_prepayment" }
-- 1099-INT: interest income → { name: "[Bank] Interest Income [Year]", type: "asset", category: "interest_income" }
-- 1099-DIV: dividends → { name: "[Broker] Dividends [Year]", type: "asset", category: "dividend_income" }
-- 1099-R: retirement distributions → category: "retirement_distribution"
-- 1099-NEC/MISC: self-employment income → category: "self_employment_income"
-- K-1: partnership/S-corp income → category: "business_interest" or "partnership_income"
-- Pay stub: gross pay → category: "employment_income"; 401k deduction → category: "401k"
+- W-2 Box 2 federal tax withheld → { name: "[Year] Federal Tax Withheld", type: "asset", category: "tax_prepayment", balance: <amount> }
+- W-2 Box 12 Code D (401k) → { name: "[Employer] 401k", type: "asset", category: "401k" }
+- W-2 Box 12 Code W (HSA) → { name: "HSA", type: "asset", category: "hsa" }
+- 1099-INT → { category: "interest_income" }
+- 1099-DIV → { category: "dividend_income" }
+- 1099-R → { category: "retirement_distribution" }
+- 1099-NEC/MISC → { category: "self_employment_income" } (unless Box 1 Rents → use rental_records)
+- K-1 → { category: "business_interest" or "partnership_income" }
 
 ## Already in the system (DO NOT duplicate these):
 Accounts already added:
@@ -136,7 +137,7 @@ ${existingPropertiesList}
 ## Document to extract from:
 Name: "${docName}"
 ---
-${text}
+${docText}
 ---
 
 Extract every financial item. Be aggressive — include partial data (use null for unknown fields).
@@ -152,8 +153,40 @@ CORRECT: 450000   WRONG: "450,000" or "$450k"
   ],
   "properties": [
     { "address": "...", "purchase_price": 450000, "purchase_date": "2020-06-15", "market_value": 620000, "mortgage_balance": 310000, "notes": "" }
+  ],
+  "rental_records": [
+    { "address": "123 Main St", "year": 2024, "month": 1, "rent_collected": 2500, "mortgage_pmt": 1800, "vacancy_days": 0, "expenses": { "property_tax": 300, "insurance": 150, "management": 250 }, "notes": "" }
   ]
 }`;
+}
+
+export async function extractAndInsert(documentId: string): Promise<{ accounts: string[]; properties: string[]; rentalRecords: string[] }> {
+  // Sample chunks spread evenly across the whole document
+  const allChunks = await sql`
+    SELECT content, chunk_index FROM chunks WHERE document_id = ${documentId} ORDER BY chunk_index
+  `;
+  if ((allChunks as unknown[]).length === 0) return { accounts: [], properties: [], rentalRecords: [] };
+
+  const [docRow] = await sql`SELECT name FROM documents WHERE id = ${documentId}`;
+  const docName = (docRow as { name: string }).name;
+
+  // Use the full document — no sampling, no cropping
+  const rows = allChunks as { content: string; chunk_index: number }[];
+  const text = rows.map(r => r.content).join('\n\n');
+
+  // Fetch what's already in the system so Claude can skip duplicates and understand context
+  const existingAccounts = await sql`SELECT name, type, category, balance, currency FROM accounts ORDER BY name`;
+  const existingProperties = await sql`SELECT address, market_value, mortgage_balance FROM properties ORDER BY address`;
+
+  const existingAccountsList = (existingAccounts as { name: string; type: string; category: string; balance: number; currency: string }[])
+    .map(a => `  - "${a.name}" (${a.type}, ${a.category}, balance: ${a.balance} ${a.currency})`)
+    .join('\n') || '  (none yet)';
+
+  const existingPropertiesList = (existingProperties as { address: string; market_value: number | null; mortgage_balance: number | null }[])
+    .map(p => `  - "${p.address}"`)
+    .join('\n') || '  (none yet)';
+
+  const prompt = buildExtractionPrompt(docName, text, existingAccountsList, existingPropertiesList);
 
   try {
     const msg = await anthropic.messages.create({
@@ -164,7 +197,7 @@ CORRECT: 450000   WRONG: "450,000" or "$450k"
 
     const text = (msg.content[0] as { type: string; text: string }).text;
     const rawParsed = findAndParseJSON(text);
-    if (!rawParsed) return { accounts: [], properties: [] };
+    if (!rawParsed) return { accounts: [], properties: [], rentalRecords: [] };
     const parsed = extractionOutputSchema.parse(rawParsed);
 
     const insertedAccounts: string[] = [];
@@ -217,8 +250,31 @@ CORRECT: 450000   WRONG: "450,000" or "$450k"
       insertedProperties.push(prop.address);
     }
 
-    return { accounts: insertedAccounts, properties: insertedProperties };
+    // ── Rental records ────────────────────────────────────────────────────
+    const insertedRecords: string[] = [];
+    for (const rec of parsed.rental_records ?? []) {
+      if (!rec.address || !rec.year || !rec.month) continue;
+      // Find the property by address
+      const allProps = await sql`SELECT id, address FROM properties` as { id: string; address: string }[];
+      const matchingProp = allProps.find(p => addressesMatch(p.address, rec.address));
+      if (!matchingProp) continue; // skip if no matching property found
+
+      const expensesJson = JSON.stringify(rec.expenses ?? {});
+      await sql`
+        INSERT INTO rental_records (property_id, year, month, rent_collected, vacancy_days, mortgage_pmt, expenses, notes)
+        VALUES (${matchingProp.id}, ${rec.year}, ${rec.month}, ${rec.rent_collected ?? 0}, ${rec.vacancy_days ?? 0}, ${rec.mortgage_pmt ?? 0}, ${expensesJson}::jsonb, ${rec.notes ?? null})
+        ON CONFLICT (property_id, year, month) DO UPDATE SET
+          rent_collected = EXCLUDED.rent_collected,
+          vacancy_days   = EXCLUDED.vacancy_days,
+          mortgage_pmt   = EXCLUDED.mortgage_pmt,
+          expenses       = EXCLUDED.expenses,
+          notes          = EXCLUDED.notes
+      `;
+      insertedRecords.push(`${rec.address} ${rec.year}/${rec.month}`);
+    }
+
+    return { accounts: insertedAccounts, properties: insertedProperties, rentalRecords: insertedRecords };
   } catch {
-    return { accounts: [], properties: [] };
+    return { accounts: [], properties: [], rentalRecords: [] };
   }
 }

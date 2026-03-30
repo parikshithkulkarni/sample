@@ -4,7 +4,7 @@ import { sql } from '@/lib/db';
 import { runMigrations } from '@/lib/db';
 import { extractConfirmSchema, parseBody } from '@/lib/validators';
 import { logger } from '@/lib/logger';
-import { accountNamesMatch, addressesMatch } from '@/lib/extract';
+import { accountNamesMatch, addressesMatch, parseNum } from '@/lib/extract';
 
 export const maxDuration = 30;
 
@@ -22,7 +22,7 @@ export async function POST(
 
   const parsed = await parseBody(req, extractConfirmSchema);
   if (parsed instanceof Response) return parsed;
-  const { accounts, properties } = parsed;
+  const { accounts, properties, rental_records } = parsed;
 
   const savedAccounts: string[] = [];
   const savedProperties: string[] = [];
@@ -89,6 +89,27 @@ export async function POST(
     }
   }
 
+  // ── Rental records ──────────────────────────────────────────────────────
+  const savedRecords: string[] = [];
+  for (const rec of rental_records ?? []) {
+    if (!rec.address || !rec.year || !rec.month || !rec._include) continue;
+    const matchingProp = allProperties.find(p => addressesMatch(p.address, rec.address));
+    if (!matchingProp) continue;
+
+    const expensesJson = JSON.stringify(rec.expenses ?? {});
+    await sql`
+      INSERT INTO rental_records (property_id, year, month, rent_collected, vacancy_days, mortgage_pmt, expenses, notes)
+      VALUES (${matchingProp.id}, ${rec.year}, ${rec.month}, ${rec.rent_collected ?? 0}, ${rec.vacancy_days ?? 0}, ${rec.mortgage_pmt ?? 0}, ${expensesJson}::jsonb, ${rec.notes ?? null})
+      ON CONFLICT (property_id, year, month) DO UPDATE SET
+        rent_collected = EXCLUDED.rent_collected,
+        vacancy_days   = EXCLUDED.vacancy_days,
+        mortgage_pmt   = EXCLUDED.mortgage_pmt,
+        expenses       = EXCLUDED.expenses,
+        notes          = EXCLUDED.notes
+    `;
+    savedRecords.push(`${rec.address} ${rec.year}/${rec.month}`);
+  }
+
   // Mark document as extracted
   await sql`UPDATE documents SET extracted_at = NOW() WHERE id = ${id}`.catch(
     (err: unknown) => logger.error('Failed to mark document as extracted', err, { documentId: id }),
@@ -99,5 +120,5 @@ export async function POST(
     syncTaxReturnsFromAccounts().catch((err: unknown) => logger.error('Failed to sync tax returns', err));
   }).catch((err: unknown) => logger.error('Failed to import tax-returns module', err));
 
-  return Response.json({ saved: { accounts: savedAccounts, properties: savedProperties } });
+  return Response.json({ saved: { accounts: savedAccounts, properties: savedProperties, rentalRecords: savedRecords } });
 }

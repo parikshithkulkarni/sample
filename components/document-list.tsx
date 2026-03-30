@@ -34,11 +34,24 @@ interface ExtractedProperty {
   _include: boolean;
 }
 
+interface ExtractedRentalRecord {
+  address: string;
+  year: number;
+  month: number;
+  rent_collected: number;
+  mortgage_pmt: number;
+  vacancy_days: number;
+  expenses: Record<string, number>;
+  notes: string;
+  _include: boolean;
+}
+
 interface ReviewState {
   docId: string;
   loading: boolean;
   accounts: ExtractedAccount[];
   properties: ExtractedProperty[];
+  rentalRecords: ExtractedRentalRecord[];
   saving: boolean;
   saved: boolean;
   error: string;
@@ -148,17 +161,18 @@ export default function DocumentList({ refresh = 0 }: Props) {
 
   async function startReview(docId: string) {
     if (review?.docId === docId) { setReview(null); return; }
-    setReview({ docId, loading: true, accounts: [], properties: [], saving: false, saved: false, error: '' });
+    setReview({ docId, loading: true, accounts: [], properties: [], rentalRecords: [], saving: false, saved: false, error: '' });
     try {
       const res = await fetch(`/api/documents/${docId}/extract-preview`, { method: 'POST' });
-      const data = await res.json() as { accounts?: ExtractedAccount[]; properties?: ExtractedProperty[]; error?: string };
+      const data = await res.json() as { accounts?: ExtractedAccount[]; properties?: ExtractedProperty[]; rental_records?: ExtractedRentalRecord[]; error?: string };
       if (data.error) {
         setReview((r) => r ? { ...r, loading: false, error: data.error! } : r);
         return;
       }
       const accounts: ExtractedAccount[] = (data.accounts ?? []).map((a) => ({ ...a, notes: a.notes ?? '', _include: true }));
       const properties: ExtractedProperty[] = (data.properties ?? []).map((p) => ({ ...p, notes: p.notes ?? '', monthly_rent: (p as { monthly_rent?: number | null }).monthly_rent ?? null, _include: true }));
-      setReview({ docId, loading: false, accounts, properties, saving: false, saved: false, error: '' });
+      const rentalRecords: ExtractedRentalRecord[] = (data.rental_records ?? []).map((r) => ({ ...r, notes: r.notes ?? '', _include: true }));
+      setReview({ docId, loading: false, accounts, properties, rentalRecords, saving: false, saved: false, error: '' });
     } catch (e) {
       setReview((r) => r ? { ...r, loading: false, error: String(e) } : r);
     }
@@ -170,12 +184,13 @@ export default function DocumentList({ refresh = 0 }: Props) {
     try {
       const accounts = review.accounts.filter((a) => a._include);
       const properties = review.properties.filter((p) => p._include);
+      const rental_records = review.rentalRecords.filter((r) => r._include);
       const res = await fetch(`/api/documents/${review.docId}/extract-confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accounts, properties }),
+        body: JSON.stringify({ accounts, properties, rental_records }),
       });
-      const data = await res.json() as { saved: { accounts: string[]; properties: string[] }; error?: string };
+      const data = await res.json() as { saved: { accounts: string[]; properties: string[]; rentalRecords: string[] }; error?: string };
       if (data.error) { setReview((r) => r ? { ...r, saving: false, error: data.error! } : r); return; }
       setReview((r) => r ? { ...r, saving: false, saved: true } : r);
     } catch (e) {
@@ -279,7 +294,7 @@ export default function DocumentList({ refresh = 0 }: Props) {
                 </p>
               )}
 
-              {review.accounts.length === 0 && review.properties.length === 0 && !review.error && (
+              {review.accounts.length === 0 && review.properties.length === 0 && review.rentalRecords.length === 0 && !review.error && (
                 <p className="text-xs text-gray-400 text-center py-2">No financial data found in this document.</p>
               )}
 
@@ -372,8 +387,57 @@ export default function DocumentList({ refresh = 0 }: Props) {
                 </div>
               )}
 
+              {/* Rental Records */}
+              {review.rentalRecords.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">
+                    Rental records found ({review.rentalRecords.filter((r) => r._include).length} selected)
+                  </p>
+                  <div className="space-y-2">
+                    {review.rentalRecords.map((rec, idx) => {
+                      const expTotal = Object.values(rec.expenses).reduce((a, b) => a + b, 0);
+                      const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                      return (
+                        <div key={idx} className={`rounded-xl border p-3 ${rec._include ? 'border-emerald-200 bg-white dark:border-emerald-800 dark:bg-gray-900' : 'border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800 opacity-60'}`}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <input
+                              type="checkbox"
+                              checked={rec._include}
+                              onChange={(e) => setReview((r) => {
+                                if (!r) return r;
+                                const updated = [...r.rentalRecords];
+                                updated[idx] = { ...updated[idx], _include: e.target.checked };
+                                return { ...r, rentalRecords: updated };
+                              })}
+                              className="rounded shrink-0"
+                            />
+                            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                              {rec.address} — {MONTHS_SHORT[rec.month - 1]} {rec.year}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-1 text-[10px] text-gray-500 dark:text-gray-400 pl-6">
+                            <span>Rent: ${rec.rent_collected.toLocaleString()}</span>
+                            <span>Mortgage: ${rec.mortgage_pmt.toLocaleString()}</span>
+                            <span>Expenses: ${expTotal.toLocaleString()}</span>
+                          </div>
+                          {Object.keys(rec.expenses).length > 0 && (
+                            <div className="pl-6 mt-1 flex flex-wrap gap-1">
+                              {Object.entries(rec.expenses).filter(([,v]) => v > 0).map(([k, v]) => (
+                                <span key={k} className="text-[9px] bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded">
+                                  {k.replace(/_/g, ' ')}: ${v.toLocaleString()}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Actions */}
-              {(review.accounts.length > 0 || review.properties.length > 0) && !review.saved && (
+              {(review.accounts.length > 0 || review.properties.length > 0 || review.rentalRecords.length > 0) && !review.saved && (
                 <div className="flex gap-2">
                   <button
                     onClick={saveReview}

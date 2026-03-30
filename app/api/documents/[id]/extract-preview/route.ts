@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
 import Anthropic from '@anthropic-ai/sdk';
-import { findAndParseJSON } from '@/lib/extract';
+import { findAndParseJSON, buildExtractionPrompt } from '@/lib/extract';
 
 export const maxDuration = 60;
 
@@ -20,7 +20,7 @@ export async function POST(
   const { id } = await params;
 
   const allChunks = await sql`SELECT content FROM chunks WHERE document_id = ${id} ORDER BY chunk_index`;
-  if ((allChunks as unknown[]).length === 0) return Response.json({ accounts: [], properties: [] });
+  if ((allChunks as unknown[]).length === 0) return Response.json({ accounts: [], properties: [], rental_records: [] });
 
   const [docRow] = await sql`SELECT name FROM documents WHERE id = ${id}`;
   const docName = (docRow as { name: string }).name;
@@ -37,59 +37,7 @@ export async function POST(
     .map(p => `  - "${p.address}"`)
     .join('\n') || '  (none yet)';
 
-  const prompt = `You are filling in a personal finance dashboard from a document. Extract EVERYTHING financially useful — be aggressive.
-
-## Finance page — Accounts
-Each account has:
-- name: descriptive string, e.g. "Chase Checking", "Fidelity 401k", "2024 Federal Tax Withheld"
-- type: exactly "asset" or "liability"
-- category: descriptive snake_case string. Examples:
-    Assets: 401k, roth_ira, brokerage, rsu, espp, nso_options, iso_options, real_estate, savings, checking, money_market, cd, treasury, bond, crypto, hsa, 529_plan, life_insurance, annuity, pension, startup_equity, angel_investment, business_interest, commodity, collectibles, employment_income, tax_prepayment, other
-    Liabilities: mortgage, heloc, auto_loan, credit_card, student_loan, personal_loan, tax_liability, margin_loan, other
-    Invent descriptive snake_case names for anything not listed.
-- balance: number (USD, positive)
-- currency: "USD"
-- notes: short context string
-
-## Rentals page — Properties
-Each property has:
-- address: full street address
-- purchase_price, market_value, mortgage_balance, monthly_rent: number or null
-- purchase_date: "YYYY-MM-DD" or null
-- notes: optional
-
-## Tax & Income Documents (W-2, 1099, pay stubs, K-1, Schedule K, etc.)
-These contain VERY useful data — extract all of it:
-- W-2 Box 1 wages → { name: "[Year] Wages - [Employer Name]", type: "asset", category: "employment_income", balance: <wages>, notes: "Gross wages per W-2" }
-- W-2 Box 2 federal tax withheld → { name: "[Year] Federal Tax Withheld", type: "asset", category: "tax_prepayment", balance: <amount>, notes: "Federal income tax withheld" }
-- W-2 Box 12 Code D (traditional 401k) → { name: "[Employer] 401k", type: "asset", category: "401k", balance: <contribution>, notes: "401k contribution per W-2 Box 12D" }
-- W-2 Box 12 Code S (SIMPLE IRA) → category: "simple_ira"
-- W-2 Box 12 Code W (HSA employer) → { name: "HSA", type: "asset", category: "hsa", balance: <amount> }
-- W-2 Box 12 Code V (ISO exercise income) → category: "iso_options"
-- W-2 Box 17 state tax withheld → { name: "[Year] [State] Tax Withheld", type: "asset", category: "tax_prepayment" }
-- 1099-INT: interest income → { name: "[Bank] Interest Income [Year]", type: "asset", category: "interest_income" }
-- 1099-DIV: dividends → { name: "[Broker] Dividends [Year]", type: "asset", category: "dividend_income" }
-- 1099-B: realized gains from brokerage → extract brokerage account if identifiable
-- 1099-R: retirement distributions → category: "retirement_distribution"
-- 1099-NEC/MISC: self-employment income → category: "self_employment_income"
-- K-1: partnership/S-corp income → category: "business_interest" or "partnership_income"
-- Pay stub: gross pay → category: "employment_income"; 401k deduction → category: "401k"
-
-## Already in system (skip exact duplicates):
-Accounts: ${existingAccountsList}
-Properties: ${existingPropertiesList}
-
-## Document: "${docName}"
----
-${text}
----
-
-Extract every financial item visible. Be aggressive — partial data is fine, use null for unknowns.
-ALL numbers: plain JSON numbers only. No $, no commas, no quotes around numbers.
-CORRECT: 450000   WRONG: "450,000" or "$450k"
-
-Return ONLY valid JSON:
-{"accounts":[{"name":"...","type":"asset","category":"checking","balance":1234,"currency":"USD","notes":""}],"properties":[{"address":"...","purchase_price":null,"purchase_date":null,"market_value":null,"mortgage_balance":null,"monthly_rent":null,"notes":""}]}`;
+  const prompt = buildExtractionPrompt(docName, text, existingAccountsList, existingPropertiesList);
 
   try {
     const msg = await anthropic.messages.create({
@@ -98,11 +46,11 @@ Return ONLY valid JSON:
       messages: [{ role: 'user', content: prompt }],
     });
 
-    const text = (msg.content[0] as { type: string; text: string }).text;
-    const parsed = findAndParseJSON(text);
+    const responseText = (msg.content[0] as { type: string; text: string }).text;
+    const parsed = findAndParseJSON(responseText);
     if (!parsed) throw new Error('No JSON object found in response');
     return Response.json(parsed);
   } catch (e) {
-    return Response.json({ error: e instanceof Error ? e.message : String(e), accounts: [], properties: [] }, { status: 500 });
+    return Response.json({ error: e instanceof Error ? e.message : String(e), accounts: [], properties: [], rental_records: [] }, { status: 500 });
   }
 }
