@@ -36,7 +36,9 @@ jobs:
         run: npx playwright install --with-deps chromium webkit
 
       - name: Run Playwright tests
-        run: npx playwright test
+        id: e2e
+        continue-on-error: true
+        run: npx playwright test --reporter=list 2>&1 | tee /tmp/playwright-output.txt
         env:
           ANTHROPIC_API_KEY: stub
           DATABASE_URL: postgresql://stub:stub@stub/stub
@@ -44,6 +46,42 @@ jobs:
           ADMIN_PASSWORD: testpass123
           NEXTAUTH_SECRET: e2e-test-secret
           NEXTAUTH_URL: http://localhost:3000
+
+      - name: Post test results to summary
+        if: ${{ !cancelled() }}
+        run: |
+          echo "## Playwright E2E Test Results" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -80 /tmp/playwright-output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Post test results as PR comment
+        if: ${{ !cancelled() && github.event_name == 'push' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const output = fs.readFileSync('/tmp/playwright-output.txt', 'utf8');
+            const lines = output.split('\n');
+            const last80 = lines.slice(-80).join('\n');
+            const body = `## Playwright E2E Test Results\n\`\`\`\n${last80}\n\`\`\``;
+
+            // Find open PRs for this branch
+            const branch = context.ref.replace('refs/heads/', '');
+            const pulls = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:${branch}`,
+              state: 'open'
+            });
+            if (pulls.data.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pulls.data[0].number,
+                body: body
+              });
+            }
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
@@ -60,3 +98,7 @@ jobs:
           name: test-results
           path: test-results/
           retention-days: 14
+
+      - name: Fail if tests failed
+        if: steps.e2e.outcome == 'failure'
+        run: exit 1
