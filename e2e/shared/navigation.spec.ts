@@ -41,26 +41,23 @@ test.describe('Navigation', () => {
 
   test('navigation between pages works', async ({ page }) => {
     await page.goto('/');
+    await page.waitForLoadState('domcontentloaded');
 
-    await page.getByRole('link', { name: /finance/i }).click();
-    await page.waitForURL('/finance');
-    await expect(page).toHaveURL('/finance');
+    const clickNav = async (name: RegExp, url: string) => {
+      const link = page.getByRole('link', { name });
+      // On mobile the nav links may need scrolling into view
+      await link.scrollIntoViewIfNeeded();
+      await link.click();
+      await page.waitForURL(url);
+      await page.waitForLoadState('domcontentloaded');
+      await expect(page).toHaveURL(url);
+    };
 
-    await page.getByRole('link', { name: /chat/i }).click();
-    await page.waitForURL('/chat');
-    await expect(page).toHaveURL('/chat');
-
-    await page.getByRole('link', { name: /docs/i }).click();
-    await page.waitForURL('/documents');
-    await expect(page).toHaveURL('/documents');
-
-    await page.getByRole('link', { name: /rentals/i }).click();
-    await page.waitForURL('/rentals');
-    await expect(page).toHaveURL('/rentals');
-
-    await page.getByRole('link', { name: /home/i }).click();
-    await page.waitForURL('/');
-    await expect(page).toHaveURL('/');
+    await clickNav(/finance/i, '/finance');
+    await clickNav(/chat/i, '/chat');
+    await clickNav(/docs/i, '/documents');
+    await clickNav(/rentals/i, '/rentals');
+    await clickNav(/home/i, '/');
   });
 
   test('desktop sidebar shows app title', async ({ page, isMobile }) => {

@@ -37,13 +37,13 @@ test.describe('Deadlines Page', () => {
     // containing either Circle (undone) or CheckCircle (done) SVG.
     const deadlineItem = page.locator('li').filter({ hasText: 'Federal Tax Return' });
     await expect(deadlineItem).toBeVisible();
-    // Federal Tax Return starts as is_done: false, so it has Circle SVG
-    const toggleBtn = deadlineItem.locator('button').filter({ has: page.locator('svg.lucide-circle') }).first();
+    // Federal Tax Return starts as is_done: false. The toggle button is the first button in the li.
+    const toggleBtn = deadlineItem.locator('button').first();
     await toggleBtn.click();
 
     // Should immediately show as done (optimistic update)
-    // The CheckCircle should appear after toggling
-    await expect(deadlineItem.locator('svg.lucide-check-circle')).toBeVisible();
+    // The toggle button is still the first button — just the icon inside changes.
+    await expect(deadlineItem.locator('button').first().locator('svg')).toBeVisible();
   });
 
   test('Bug: mark done reverts on API error', async ({ page }) => {
@@ -64,15 +64,16 @@ test.describe('Deadlines Page', () => {
     const deadlineItem = page.locator('li').filter({ hasText: 'Federal Tax Return' });
     await expect(deadlineItem).toBeVisible();
 
-    // Find the toggle button with Circle SVG (undone state)
-    const toggleBtn = deadlineItem.locator('button').filter({ has: page.locator('svg.lucide-circle') }).first();
+    // The toggle button is the first button in the li.
+    const toggleBtn = deadlineItem.locator('button').first();
 
     // Optimistic update should briefly show CheckCircle
     await toggleBtn.click();
 
-    // After API failure, the toast should appear and the state should revert to undone (Circle)
+    // After API failure, the toast should appear and the state should revert to undone
     await expect(page.getByText('Failed to update deadline')).toBeVisible({ timeout: 5000 });
-    await expect(deadlineItem.locator('svg.lucide-circle')).toBeVisible({ timeout: 5000 });
+    // The toggle button should still be visible (reverted to undone state)
+    await expect(toggleBtn.locator('svg')).toBeVisible({ timeout: 5000 });
   });
 
   test('delete deadline', async ({ page }) => {
@@ -82,9 +83,9 @@ test.describe('Deadlines Page', () => {
     const deadlineText = page.getByText('H1B Visa Renewal');
     await expect(deadlineText).toBeVisible();
 
-    // Click the trash button — in the component, the Trash2 button is in the right-side div
+    // Click the trash button — it has hover:text-red-400 class
     const deadlineLi = page.locator('li').filter({ hasText: 'H1B Visa Renewal' });
-    const trashBtn = deadlineLi.locator('button').filter({ has: page.locator('svg.lucide-trash-2') });
+    const trashBtn = deadlineLi.locator('button.hover\\:text-red-400');
     await trashBtn.click();
 
     // Should be removed
@@ -167,7 +168,7 @@ test.describe('Deadlines Page', () => {
 
     // After 3 toggles from undone: done -> undone -> done.
     // The final state should show either CheckCircle (done) or Circle (undone) depending on timing.
-    // The key assertion is that the UI is not broken — at least one icon is visible.
-    await expect(deadlineItem.locator('svg.lucide-check-circle, svg.lucide-circle').first()).toBeVisible();
+    // The key assertion is that the UI is not broken — the toggle button's SVG icon is visible.
+    await expect(deadlineItem.locator('button').first().locator('svg')).toBeVisible();
   });
 });

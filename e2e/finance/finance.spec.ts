@@ -75,7 +75,9 @@ test.describe('Finance Page', () => {
     // The AccountRow li contains: account name, then a flex container with balance + pencil button + trash button.
     // Find the pencil button (the one with Pencil SVG) in the same li as "Fidelity 401k".
     const accountLi = page.locator('li').filter({ hasText: 'Fidelity 401k' });
-    const pencilBtn = accountLi.locator('button').filter({ has: page.locator('svg.lucide-pencil') });
+    // In non-editing mode, the AccountRow has two buttons: pencil (edit), then trash (delete).
+    // Pencil button has hover:text-sky-500 class.
+    const pencilBtn = accountLi.locator('button.hover\\:text-sky-500');
     await pencilBtn.click();
 
     // Should show input field (type="number")
@@ -83,7 +85,8 @@ test.describe('Finance Page', () => {
     await expect(balanceInput).toBeVisible();
     await balanceInput.fill('130000');
 
-    // Click the check button to save (the one with Check SVG / text-emerald-500 class)
+    // Click the check button to save — in editing mode, buttons are: [save (check), cancel (X)].
+    // The save button has text-emerald-500 class.
     const saveBtn = accountLi.locator('button.text-emerald-500');
     await saveBtn.click();
   });
@@ -96,10 +99,10 @@ test.describe('Finance Page', () => {
     // Start editing an account
     await expect(page.getByText('Fidelity 401k')).toBeVisible();
     const accountLi = page.locator('li').filter({ hasText: 'Fidelity 401k' });
-    const pencilBtn = accountLi.locator('button').filter({ has: page.locator('svg.lucide-pencil') });
+    const pencilBtn = accountLi.locator('button.hover\\:text-sky-500');
     await pencilBtn.click();
 
-    // Cancel the edit - click the X button (text-gray-400 class)
+    // Cancel the edit - click the X button. In editing mode, buttons are: [save, cancel].
     const cancelBtn = accountLi.locator('button.text-gray-400');
     await cancelBtn.click();
 
@@ -119,9 +122,9 @@ test.describe('Finance Page', () => {
     // Handle the confirm dialog that remove() triggers
     page.on('dialog', (dialog) => dialog.accept());
 
-    // Click delete (trash) button - target the Trash2 SVG specifically
+    // Click delete (trash) button — it has hover:text-red-400 class
     const accountLi = page.locator('li').filter({ hasText: 'Fidelity 401k' });
-    const trashBtn = accountLi.locator('button').filter({ has: page.locator('svg.lucide-trash-2') });
+    const trashBtn = accountLi.locator('button.hover\\:text-red-400');
     await trashBtn.click();
 
     // Account should be removed (optimistic)
@@ -204,7 +207,7 @@ test.describe('Finance Page', () => {
     // Start editing the account balance
     await expect(page.getByText('Fidelity 401k')).toBeVisible();
     const accountLi = page.locator('li').filter({ hasText: 'Fidelity 401k' });
-    const pencilBtn = accountLi.locator('button').filter({ has: page.locator('svg.lucide-pencil') });
+    const pencilBtn = accountLi.locator('button.hover\\:text-sky-500');
     await pencilBtn.click();
 
     // The input is type="number", so non-numeric text cannot be entered.
@@ -248,7 +251,7 @@ test.describe('Finance Page', () => {
     // Start editing
     await expect(page.getByText('Fidelity 401k')).toBeVisible();
     const accountLi = page.locator('li').filter({ hasText: 'Fidelity 401k' });
-    const pencilBtn = accountLi.locator('button').filter({ has: page.locator('svg.lucide-pencil') });
+    const pencilBtn = accountLi.locator('button.hover\\:text-sky-500');
     await pencilBtn.click();
 
     const balanceInput = accountLi.locator('input[type="number"]');

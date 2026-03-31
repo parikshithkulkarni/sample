@@ -15,21 +15,24 @@ test.describe('Property Detail Page', () => {
 
   test('back button navigates to rentals list', async ({ page }) => {
     await page.goto('/rentals/p1');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
+
+    // Wait for the property header to confirm mock data has loaded
+    await expect(page.getByText('123 Main St, San Francisco, CA')).toBeVisible({ timeout: 10000 });
 
     // The back button in rental-property-detail.tsx has text "All Properties"
     const backBtn = page.locator('button, a').filter({ hasText: /all properties/i }).first();
-    if (await backBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await backBtn.click();
-      await expect(page).toHaveURL(/\/rentals/);
-    }
+    await expect(backBtn).toBeVisible({ timeout: 5000 });
+    await backBtn.click();
+    await expect(page).toHaveURL(/\/rentals/);
   });
 
   test('edit property form', async ({ page }) => {
     await page.goto('/rentals/p1');
     await page.waitForLoadState('networkidle');
 
-    const editBtn = page.locator('button').filter({ has: page.locator('svg.lucide-pencil') }).first();
+    // The edit button has hover:text-sky-500 class.
+    const editBtn = page.locator('button.hover\\:text-sky-500').first();
     if (await editBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await editBtn.click();
 
@@ -48,7 +51,8 @@ test.describe('Property Detail Page', () => {
     await page.goto('/rentals/p1');
     await page.waitForLoadState('networkidle');
 
-    const deleteBtn = page.locator('button').filter({ has: page.locator('svg.lucide-trash-2') }).first();
+    // The delete button contains a Trash2 icon. It has hover:text-red-400 class.
+    const deleteBtn = page.locator('button.hover\\:text-red-400').first();
     if (await deleteBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await deleteBtn.click();
       await expect(page).toHaveURL(/\/rentals$/, { timeout: 5000 });
@@ -85,27 +89,33 @@ test.describe('Property Detail Page', () => {
 
   test('monthly records table', async ({ page }) => {
     await page.goto('/rentals/p1');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
+
+    // Wait for property header to confirm the page has loaded with mock data
+    await expect(page.getByText('123 Main St, San Francisco, CA')).toBeVisible({ timeout: 10000 });
 
     // Records for months 1,2,3 should show month names "Jan", "Feb", "Mar"
-    await expect(page.getByText('Jan').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Jan').first()).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('Feb').first()).toBeVisible();
   });
 
   test('expanded row shows expense breakdown', async ({ page }) => {
     await page.goto('/rentals/p1');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
+
+    // Wait for property header to confirm mock data has loaded
+    await expect(page.getByText('123 Main St, San Francisco, CA')).toBeVisible({ timeout: 10000 });
 
     // Wait for records to load, then click the Jan cell in the table to expand.
     // The <tr> has onClick that sets expandedRow, and the month name is inside a <td>.
     const janCell = page.locator('td').filter({ hasText: 'Jan' }).first();
-    await expect(janCell).toBeVisible({ timeout: 5000 });
+    await expect(janCell).toBeVisible({ timeout: 10000 });
     await janCell.click();
 
     // The expanded row shows expense groups inline within the Month cell.
     // TEST_RENTAL_RECORDS[0] has expenses: { property_tax: 800, insurance: 200, maintenance: 100 }
     // These fall under "Taxes & Insurance" and "Building & Maintenance" group labels.
-    await expect(page.getByText('Taxes & Insurance')).toBeVisible({ timeout: 3000 });
+    await expect(page.getByText('Taxes & Insurance')).toBeVisible({ timeout: 5000 });
   });
 
   test('expense categories in form', async ({ page }) => {

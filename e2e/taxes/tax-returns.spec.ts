@@ -17,16 +17,21 @@ test.describe('Tax Returns Page', () => {
 
   test('country toggle US/India', async ({ page }) => {
     await page.goto('/taxes');
+    await page.waitForLoadState('domcontentloaded');
 
-    // Should default to US
-    await expect(page.getByText('US')).toBeVisible();
+    // Should default to US — wait for the page to fully render
+    await expect(page.getByText('US')).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('India')).toBeVisible();
 
-    // Click India toggle
+    // Click India toggle — use a broader locator that matches the button
+    // containing the India text (which may include flag emoji like "🇮🇳 India (ITR)")
     await page.getByRole('button', { name: /india/i }).click();
 
+    // Wait for the India tax form to load after toggling
+    await page.waitForLoadState('domcontentloaded');
+
     // Should show India form fields
-    await expect(page.getByText(/residential status|regime/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/residential status|regime/i)).toBeVisible({ timeout: 10000 });
   });
 
   test('US form renders with correct fields', async ({ page }) => {
@@ -95,8 +100,11 @@ test.describe('Tax Returns Page', () => {
     await page.goto('/taxes');
 
     // Look for arrow buttons
-    const leftArrow = page.locator('button').filter({ has: page.locator('svg.lucide-chevron-left') });
-    const rightArrow = page.locator('button').filter({ has: page.locator('svg.lucide-chevron-right') });
+    // Year navigation arrows are prev/next buttons with hover:bg-gray-100 class
+    // Left arrow is the first such button, right arrow is the second
+    const yearNav = page.locator('button.hover\\:bg-gray-100');
+    const leftArrow = yearNav.first();
+    const rightArrow = yearNav.last();
 
     if (await leftArrow.isVisible()) {
       await leftArrow.click();

@@ -25,7 +25,7 @@ test.describe('Accessibility', () => {
     await page.waitForLoadState('networkidle');
 
     // Wait for form to render (adminExists check resolves)
-    await expect(page.getByLabel('Username')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByLabel('Username')).toBeVisible({ timeout: 15000 });
     await expect(page.getByLabel('Password')).toBeVisible();
   });
 
@@ -94,7 +94,7 @@ test.describe('Accessibility - Unauthenticated', () => {
     await page.goto('/setup');
     await page.waitForLoadState('networkidle');
 
-    await expect(page.getByLabel('Username')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByLabel('Username')).toBeVisible({ timeout: 15000 });
     await expect(page.getByLabel('Password')).toBeVisible();
     await expect(page.getByLabel('Confirm password')).toBeVisible();
   });

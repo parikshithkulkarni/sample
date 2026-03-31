@@ -44,7 +44,8 @@ test.describe('Capture Modal', () => {
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
     // Click X button
-    await page.locator('[role="dialog"] button').filter({ has: page.locator('svg.lucide-x') }).click();
+    // The close button has text-gray-400 hover:text-gray-600 classes
+    await page.locator('[role="dialog"] button.hover\\:text-gray-600').click();
 
     await expect(page.locator('[role="dialog"]')).not.toBeVisible();
   });

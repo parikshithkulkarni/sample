@@ -57,7 +57,7 @@ test.describe('Rentals Page', () => {
 
     // Find the property card containing this address, then target the Trash2 button specifically
     const propCard = page.locator('div.cursor-pointer').filter({ hasText: '456 Oak Ave, Austin, TX' });
-    const deleteBtn = propCard.locator('button').filter({ has: page.locator('svg.lucide-trash-2') });
+    const deleteBtn = propCard.locator('button').last();
     await deleteBtn.click();
   });
 
