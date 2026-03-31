@@ -54,14 +54,25 @@ export async function POST() {
     });
 
     const raw = (msg.content[0] as { type: string; text: string }).text.trim();
+    // Strip markdown fences if present
+    const jsonStr = raw.replace(/^```json\s*\n?/, '').replace(/\n?```\s*$/, '');
 
     // 4. Parse JSON response
-    const parsed = JSON.parse(raw) as {
-      findings: { title: string; description: string; severity: string; category: string }[];
+    const parsed = JSON.parse(jsonStr) as {
+      findings?: { title: string; description: string; severity: string; category: string }[];
     };
 
-    // 5. Return findings
-    return Response.json(parsed);
+    // 5. Validate and return findings
+    const findings = Array.isArray(parsed.findings)
+      ? parsed.findings.map((f) => ({
+          title: String(f.title ?? ''),
+          description: String(f.description ?? ''),
+          severity: ['high', 'medium', 'low'].includes(f.severity) ? f.severity : 'medium',
+          category: String(f.category ?? 'general'),
+        }))
+      : [];
+
+    return Response.json({ findings });
   } catch (e) {
     const errMsg = e instanceof Error ? e.message : String(e);
 

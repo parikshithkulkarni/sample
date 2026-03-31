@@ -3,6 +3,7 @@ import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
 import Anthropic from '@anthropic-ai/sdk';
 import { DASHBOARD_INSIGHTS_PROMPT } from '@/lib/prompts';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 60;
 
@@ -129,10 +130,11 @@ export async function GET(req: Request) {
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 2048,
+      system: DASHBOARD_INSIGHTS_PROMPT,
       messages: [
         {
           role: 'user',
-          content: `${DASHBOARD_INSIGHTS_PROMPT}\n\n---\n\nHere is the user's current financial data:\n\n${context}\n\n---\n\nRespond with ONLY valid JSON, no markdown fences.`,
+          content: `Here is the user's current financial data:\n\n${context}\n\n---\n\nRespond with ONLY valid JSON, no markdown fences.`,
         },
       ],
     });
@@ -177,7 +179,7 @@ export async function GET(req: Request) {
 
     return Response.json({ insights, next_actions });
   } catch (err) {
-    console.error('Insights API error:', err);
+    logger.error('Insights API error:', err);
     return Response.json(
       { error: 'Failed to generate insights' },
       { status: 500 },
