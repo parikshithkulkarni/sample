@@ -31,7 +31,7 @@ function addPath(obj: Record<string, unknown>, path: string, value: number) {
     cur = cur[keys[i]] as Record<string, unknown>;
   }
   const last = keys[keys.length - 1];
-  cur[last] = (Number(cur[last]) || 0) + value;
+  cur[last] = Math.round(((Number(cur[last]) || 0) + value) * 100) / 100;
 }
 
 /** Track which account/source populated each tax field */
