@@ -308,4 +308,7 @@ export async function mockDashboardAPIs(
   await page.route('**/api/documents/extract-all', async (route) => {
     await route.fulfill({ json: { ok: true } });
   });
+  await page.route('**/api/insights', async (route) => {
+    await route.fulfill({ json: { insights: [] } });
+  });
 }
