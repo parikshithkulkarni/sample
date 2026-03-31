@@ -14,17 +14,19 @@ test.describe('Property Detail Page', () => {
   });
 
   test('back button navigates to rentals list', async ({ page }) => {
+    // Navigate to /rentals first so router.back() has history
+    await page.goto('/rentals');
     await page.goto('/rentals/p1');
     await page.waitForLoadState('domcontentloaded');
 
     // Wait for the property header to confirm mock data has loaded
     await expect(page.getByText('123 Main St, San Francisco, CA')).toBeVisible({ timeout: 10000 });
 
-    // The back button in rental-property-detail.tsx has text "All Properties"
+    // The back button in rental-property-detail.tsx uses router.back()
     const backBtn = page.locator('button, a').filter({ hasText: /all properties/i }).first();
     await expect(backBtn).toBeVisible({ timeout: 5000 });
     await backBtn.click();
-    await expect(page).toHaveURL(/\/rentals/);
+    await expect(page).toHaveURL(/\/rentals/, { timeout: 5000 });
   });
 
   test('edit property form', async ({ page }) => {

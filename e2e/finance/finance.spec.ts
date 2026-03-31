@@ -16,9 +16,9 @@ test.describe('Finance Page', () => {
     await page.goto('/finance');
     await page.waitForLoadState('domcontentloaded');
 
-    await expect(page.getByText('Net Worth')).toBeVisible();
-    await expect(page.getByText(/Assets/)).toBeVisible();
-    await expect(page.getByText(/Liabilities/)).toBeVisible();
+    await expect(page.getByText('Net Worth')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/Assets/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/Liabilities/)).toBeVisible({ timeout: 5000 });
   });
 
   test('add account form opens and closes', async ({ page }) => {

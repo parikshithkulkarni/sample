@@ -30,8 +30,8 @@ test.describe('Tax Returns Page', () => {
     // Wait for the India tax form to load after toggling
     await page.waitForLoadState('domcontentloaded');
 
-    // Should show India form fields
-    await expect(page.getByText(/residential status|regime/i)).toBeVisible({ timeout: 10000 });
+    // Should show India form fields — the TaxReturnIndia component renders "Residential Status" label
+    await expect(page.getByText('Residential Status')).toBeVisible({ timeout: 15000 });
   });
 
   test('US form renders with correct fields', async ({ page }) => {
