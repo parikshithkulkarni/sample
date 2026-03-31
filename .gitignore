@@ -17,3 +17,8 @@ tsconfig.tsbuildinfo
 .DS_Store
 *.pem
 npm-debug.log*
+
+# Playwright
+e2e/.auth/
+test-results/
+playwright-report/

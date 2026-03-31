@@ -1,0 +1,17 @@
+Second Brain Test Document
+
+This is a test document for E2E testing. It contains sample financial data for extraction testing.
+
+Account: Fidelity 401k - Balance: $125,000
+Account: Chase Checking - Balance: $15,000
+Account: Mortgage - Balance: $350,000
+
+Property: 123 Main Street, San Francisco, CA 94105
+Purchase Price: $800,000
+Market Value: $950,000
+Monthly Rent: $4,500
+
+Tax Year 2024:
+Wages: $200,000
+Federal Tax Withheld: $45,000
+State Tax Withheld: $12,000
