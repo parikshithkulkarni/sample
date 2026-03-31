@@ -12,7 +12,7 @@ export default function CaptureModal() {
   const [saving, setSaving] = useState(false);
   const { addToast } = useToast();
   const sheetRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(sheetRef, open);
+  useFocusTrap(sheetRef, open, () => setOpen(false));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

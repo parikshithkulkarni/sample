@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CheckCircle, Circle, Trash2, Plus } from 'lucide-react';
+import { CheckCircle, Circle, Trash2, Plus, CalendarX } from 'lucide-react';
 import { daysUntil } from '@/lib/utils';
 import { SkeletonList } from '@/components/skeleton';
+import { useToast } from '@/components/toast';
 
 interface Deadline {
   id: string;
@@ -34,6 +35,7 @@ const categoryColor: Record<string, string> = {
 };
 
 export default function DeadlineList() {
+  const { addToast } = useToast();
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -54,8 +56,9 @@ export default function DeadlineList() {
       });
       if (!res.ok) throw new Error('Failed to update');
     } catch {
-      // Revert on error
+      // Revert on error with user feedback
       setDeadlines((prev) => prev.map((x) => x.id === d.id ? { ...x, is_done: d.is_done } : x));
+      addToast('Failed to update deadline', 'error');
     }
   }
 
@@ -111,6 +114,16 @@ export default function DeadlineList() {
           <SkeletonList />
           <SkeletonList />
           <SkeletonList />
+        </div>
+      )}
+
+      {!loading && deadlines.length === 0 && (
+        <div className="text-center py-12">
+          <div className="w-14 h-14 bg-sky-50 dark:bg-sky-950/30 rounded-2xl flex items-center justify-center mx-auto mb-3">
+            <CalendarX size={24} className="text-sky-500" />
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">No deadlines yet</p>
+          <p className="text-xs text-gray-400 mt-1">Add your first deadline to start tracking important dates</p>
         </div>
       )}
 

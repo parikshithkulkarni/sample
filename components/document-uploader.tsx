@@ -154,7 +154,13 @@ export default function DocumentUploader({ onUploaded }: Props) {
     e.preventDefault();
     setDragging(false);
     const file = e.dataTransfer.files[0];
-    if (file) upload(file);
+    if (!file) return;
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (!ext || !['pdf', 'txt', 'md'].includes(ext)) {
+      setError('Unsupported file type. Please upload PDF, TXT, or MD files.');
+      return;
+    }
+    upload(file);
   }
 
   return (
