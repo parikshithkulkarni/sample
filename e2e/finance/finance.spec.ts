@@ -198,6 +198,40 @@ test.describe('Finance Page', () => {
     }
   });
 
+  test('income items with generic categories show under Tax & Income Records, not Other Assets', async ({ page }) => {
+    const accountsWithIncome = [
+      ...TEST_ACCOUNTS,
+      { id: 'inc-1', name: '2025 Wages - Writer Inc', type: 'asset', category: 'other', balance: 160941, currency: 'USD', notes: null, updated_at: '2025-01-15T00:00:00Z' },
+      { id: 'inc-2', name: 'Rental Income - Parikshith (Tom\'s PM LLC)', type: 'asset', category: 'other', balance: 55525, currency: 'USD', notes: null, updated_at: '2025-01-15T00:00:00Z' },
+      { id: 'inc-3', name: 'Robinhood Dividends 2025', type: 'asset', category: 'other', balance: 96, currency: 'USD', notes: null, updated_at: '2025-01-15T00:00:00Z' },
+      { id: 'inc-4', name: 'Robinhood Substitute Payments 2025', type: 'asset', category: 'other', balance: 2, currency: 'USD', notes: null, updated_at: '2025-01-15T00:00:00Z' },
+      { id: 'inc-5', name: 'UWM Mortgage Escrow Balance - 12806', type: 'asset', category: 'escrow', balance: 2175, currency: 'USD', notes: null, updated_at: '2025-01-15T00:00:00Z' },
+      { id: 'inc-6', name: 'Robinhood Substitute Payments (MISC) 2025', type: 'asset', category: 'other_income', balance: 2, currency: 'USD', notes: null, updated_at: '2025-01-15T00:00:00Z' },
+    ];
+    await mockFinanceAPI(page, accountsWithIncome);
+    await page.goto('/finance');
+
+    // Income items should appear under "Tax & Income Records"
+    await expect(page.getByText('Tax & Income Records')).toBeVisible();
+
+    // They should NOT appear under "Other Assets"
+    const otherAssetsHeader = page.getByText('Other Assets');
+    await expect(otherAssetsHeader).not.toBeVisible();
+  });
+
+  test('duplicate mortgages with city/state suffix are detected as duplicates', async ({ page }) => {
+    const accountsWithDupMortgages = [
+      ...TEST_ACCOUNTS,
+      { id: 'mtg-1', name: 'PHH Mortgage - 1014 Terrace Trl', type: 'liability', category: 'mortgage', balance: 213838, currency: 'USD', notes: null, updated_at: '2025-01-15T00:00:00Z' },
+      { id: 'mtg-2', name: 'PHH Mortgage - 1014 Terrace Trl Carrollton TX', type: 'liability', category: 'mortgage', balance: 213838, currency: 'USD', notes: null, updated_at: '2025-01-15T00:00:00Z' },
+    ];
+    await mockFinanceAPI(page, accountsWithDupMortgages);
+    await page.goto('/finance');
+
+    // Should detect the PHH Mortgage entries as duplicates
+    await expect(page.getByText('Duplicate accounts detected')).toBeVisible();
+  });
+
   test('Bug: optimistic balance update reverts on API error', async ({ page }) => {
     // Override the PATCH to fail
     await page.route('**/api/finance/cleanup', (r) => r.fulfill({ json: {} }));
