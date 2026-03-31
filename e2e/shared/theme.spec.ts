@@ -18,72 +18,61 @@ async function getThemeToggle(page: import('@playwright/test').Page) {
 }
 
 test.describe('Theme Toggle', () => {
-  // Skip on mobile-safari — the floating theme button is absolute-positioned
-  // and Playwright's :visible pseudo-class doesn't reliably match it
-  test.skip(({ isMobile }) => !!isMobile,
-    'Theme toggle positioning unreliable on mobile');
-
   test.beforeEach(async ({ page }) => {
     await mockDashboardAPIs(page, {});
   });
 
-  test('toggle to dark mode adds dark class', async ({ page }) => {
+  test('toggle to dark mode adds dark class', async ({ page, isMobile }) => {
+    test.skip(!!isMobile, 'Mobile theme toggle unreliable in headless');
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
 
-    // Find and click theme toggle (works on both desktop and mobile)
     const toggle = await getThemeToggle(page);
     await toggle.click();
 
-    // Verify dark class on <html> using auto-retrying assertion
     await expect(page.locator('html')).toHaveClass(/dark/);
   });
 
-  test('toggle back to light mode removes dark class', async ({ page }) => {
+  test('toggle back to light mode removes dark class', async ({ page, isMobile }) => {
+    test.skip(!!isMobile, 'Mobile theme toggle unreliable in headless');
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
 
     const toggle = await getThemeToggle(page);
-
-    // Toggle to dark
     await toggle.click();
     await expect(page.locator('html')).toHaveClass(/dark/);
 
-    // Toggle back to light
     const toggleAgain = await getThemeToggle(page);
     await toggleAgain.click();
     await expect(page.locator('html')).not.toHaveClass(/dark/);
   });
 
-  test('theme persists across navigation', async ({ page }) => {
-    // Mock other page APIs
+  test('theme persists across navigation', async ({ page, isMobile }) => {
+    test.skip(!!isMobile, 'Mobile theme toggle unreliable in headless');
     await page.route('**/api/finance/cleanup', (r) => r.fulfill({ json: {} }));
     await page.route('**/api/finance/snapshots', (r) => r.fulfill({ json: [] }));
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
 
-    // Set dark mode
     const toggle = await getThemeToggle(page);
     await toggle.click();
     await expect(page.locator('html')).toHaveClass(/dark/);
 
-    // Navigate to another page
     await page.getByRole('link', { name: /finance/i }).click();
     await page.waitForURL('/finance');
     await page.waitForLoadState('domcontentloaded');
 
-    // Should still be dark (auto-retrying)
     await expect(page.locator('html')).toHaveClass(/dark/);
   });
 
-  test('theme stored in localStorage', async ({ page }) => {
+  test('theme stored in localStorage', async ({ page, isMobile }) => {
+    test.skip(!!isMobile, 'Mobile theme toggle unreliable in headless');
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
 
     const toggle = await getThemeToggle(page);
     await toggle.click();
 
-    // Use waitForFunction which retries until the condition is true
     await page.waitForFunction(() => localStorage.getItem('theme') === 'dark');
   });
 });
