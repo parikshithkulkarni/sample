@@ -66,14 +66,9 @@ export async function POST(req: Request) {
   const { year, country } = parsed;
   const defaults = country === 'US' ? US_DEFAULT : INDIA_DEFAULT;
 
-  // Step 1: Reset tax return to defaults so stale/inflated values are cleared
-  const resetDefaults = country === 'US' ? US_DEFAULT : INDIA_DEFAULT;
-  const existingRows = await sql`SELECT id FROM tax_returns WHERE tax_year = ${year} AND country = ${country}` as { id: string }[];
-  if (existingRows.length > 0) {
-    await sql`UPDATE tax_returns SET data = ${JSON.stringify(resetDefaults)}::jsonb, sources = '{}'::jsonb, updated_at = NOW() WHERE id = ${existingRows[0].id}`;
-  }
-
-  // Step 2: Re-extract all documents (writes correct tax_data with SET semantics + source tracking)
+  // Step 1: Re-extract all documents (uses SET semantics — replaces, not adds)
+  // This writes correct tax_data with document source tracking.
+  // If extraction fails for a doc, existing values are preserved (not zeroed).
   try {
     const { extractAndInsert } = await import('@/lib/extract');
     const docs = await sql`SELECT id FROM documents ORDER BY added_at ASC` as { id: string }[];
@@ -84,7 +79,7 @@ export async function POST(req: Request) {
     logger.error('Document re-extraction failed during tax sync', err);
   }
 
-  // Step 3: Sync from accounts and rental records
+  // Step 2: Sync from accounts and rental records
   const { syncTaxReturnsFromAccounts } = await import('@/lib/tax-returns');
   await syncTaxReturnsFromAccounts(year);
 
