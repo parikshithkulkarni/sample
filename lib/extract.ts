@@ -236,6 +236,9 @@ export async function extractAndInsert(documentId: string): Promise<{ accounts: 
     // ── Tax data (income, withholdings, etc.) → directly to tax_returns ──
     const insertedTaxData: string[] = [];
     const { US_DEFAULT, INDIA_DEFAULT } = await import('@/lib/tax-data');
+
+    // Collect all tax data by year/country first, then write once (prevents double-counting on re-extract)
+    const taxBatch = new Map<string, { country: string; taxYear: number; fields: Record<string, number>; sourceFields: Record<string, { label: string; type: string }> }>();
     for (const td of parsed.tax_data ?? []) {
       if (!td.field || !td.tax_year || !td.amount) continue;
       const isUS = td.field.startsWith('us.');
@@ -244,31 +247,47 @@ export async function extractAndInsert(documentId: string): Promise<{ accounts: 
 
       const country = isUS ? 'US' : 'India';
       const taxPath = td.field.slice(isUS ? 3 : 6); // strip "us." or "india."
-      const defaults = country === 'US' ? US_DEFAULT : INDIA_DEFAULT;
+      const batchKey = `${country}:${td.tax_year}`;
 
-      // Load or create tax return
-      const existing = await sql`SELECT id, data FROM tax_returns WHERE tax_year = ${td.tax_year} AND country = ${country}` as { id: string; data: Record<string, unknown> }[];
+      let batch = taxBatch.get(batchKey);
+      if (!batch) {
+        batch = { country, taxYear: td.tax_year, fields: {}, sourceFields: {} };
+        taxBatch.set(batchKey, batch);
+      }
+      // Round to 2 decimal places to avoid floating point issues
+      const amount = Math.round(td.amount * 100) / 100;
+      batch.fields[taxPath] = (batch.fields[taxPath] ?? 0) + amount;
+      batch.sourceFields[taxPath] = { label: docName, type: 'document' };
+      insertedTaxData.push(`${country} ${td.tax_year}: ${taxPath} = ${amount}`);
+    }
+
+    // Write each year/country batch using SET semantics (not additive to DB values)
+    for (const [, batch] of taxBatch) {
+      const defaults = batch.country === 'US' ? US_DEFAULT : INDIA_DEFAULT;
+      const existing = await sql`SELECT id, data, sources FROM tax_returns WHERE tax_year = ${batch.taxYear} AND country = ${batch.country}` as { id: string; data: Record<string, unknown>; sources: Record<string, unknown> }[];
       const data = existing.length > 0
         ? { ...defaults, ...existing[0].data } as Record<string, unknown>
         : { ...defaults } as Record<string, unknown>;
+      const existingSources = (existing[0]?.sources ?? {}) as Record<string, unknown>;
 
-      // Set the field value (additive for income fields)
-      const keys = taxPath.split('.');
-      let cur = data;
-      for (let i = 0; i < keys.length - 1; i++) {
-        if (typeof cur[keys[i]] !== 'object' || cur[keys[i]] === null) cur[keys[i]] = {};
-        cur = cur[keys[i]] as Record<string, unknown>;
+      for (const [taxPath, val] of Object.entries(batch.fields)) {
+        const keys = taxPath.split('.');
+        let cur = data;
+        for (let i = 0; i < keys.length - 1; i++) {
+          if (typeof cur[keys[i]] !== 'object' || cur[keys[i]] === null) cur[keys[i]] = {};
+          cur = cur[keys[i]] as Record<string, unknown>;
+        }
+        cur[keys[keys.length - 1]] = val; // SET, not add — prevents double-counting on re-extract
       }
-      const lastKey = keys[keys.length - 1];
-      cur[lastKey] = (Number(cur[lastKey]) || 0) + td.amount;
 
+      const mergedSources = { ...existingSources, ...batch.sourceFields };
       const dataJson = JSON.stringify(data);
+      const sourcesJson = JSON.stringify(mergedSources);
       if (existing.length > 0) {
-        await sql`UPDATE tax_returns SET data = ${dataJson}::jsonb, updated_at = NOW() WHERE id = ${existing[0].id}`;
+        await sql`UPDATE tax_returns SET data = ${dataJson}::jsonb, sources = ${sourcesJson}::jsonb, updated_at = NOW() WHERE id = ${existing[0].id}`;
       } else {
-        await sql`INSERT INTO tax_returns (tax_year, country, data) VALUES (${td.tax_year}, ${country}, ${dataJson}::jsonb)`;
+        await sql`INSERT INTO tax_returns (tax_year, country, data, sources) VALUES (${batch.taxYear}, ${batch.country}, ${dataJson}::jsonb, ${sourcesJson}::jsonb)`;
       }
-      insertedTaxData.push(`${country} ${td.tax_year}: ${taxPath} = ${td.amount}`);
     }
 
     return { accounts: insertedAccounts, properties: insertedProperties, rentalRecords: insertedRecords, taxData: insertedTaxData };

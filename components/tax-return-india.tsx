@@ -35,7 +35,7 @@ function Row({ label, value, onChange, note, source }: { label: string; value: n
         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">₹</span>
         <input
           type="number"
-          value={value || ''}
+          value={value ? Math.round(value * 100) / 100 : ''}
           onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
           className="w-32 pl-5 pr-2 py-1 text-xs text-right border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-400"
           placeholder="0"
