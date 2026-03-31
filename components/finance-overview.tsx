@@ -151,12 +151,12 @@ function normalizeAcctName(name: string): string {
     .trim();
 }
 
-function hasDuplicates(accounts: { name: string }[]): boolean {
-  const seen = new Set<string>();
-  for (const a of accounts) {
-    const key = normalizeAcctName(a.name);
-    if (seen.has(key)) return true;
-    seen.add(key);
+function acctNamesAreDupes(a: string, b: string): boolean {
+  const na = normalizeAcctName(a);
+  const nb = normalizeAcctName(b);
+  if (na === nb) return true;
+  if (na.length >= 8 && nb.length >= 8) {
+    if (na.startsWith(nb) || nb.startsWith(na) || na.includes(nb) || nb.includes(na)) return true;
   }
   return false;
 }
@@ -189,7 +189,7 @@ export default function FinanceOverview() {
       if (visited.has(accounts[i].id)) continue;
       const group = [accounts[i]];
       for (let j = i + 1; j < accounts.length; j++) {
-        if (!visited.has(accounts[j].id) && normalizeAcctName(accounts[i].name) === normalizeAcctName(accounts[j].name)) {
+        if (!visited.has(accounts[j].id) && acctNamesAreDupes(accounts[i].name, accounts[j].name)) {
           group.push(accounts[j]);
           visited.add(accounts[j].id);
         }
