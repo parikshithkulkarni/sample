@@ -65,14 +65,7 @@ export async function POST(req: Request) {
   const { year, country } = parsed;
   const defaults = country === 'US' ? US_DEFAULT : INDIA_DEFAULT;
 
-  // Reset tax return to defaults for this year/country, then re-sync from accounts.
-  // This clears stale/inflated values from old extraction bugs.
-  // To re-extract from documents, use "Sync from docs" on the Finance page first.
-  const existingRows = await sql`SELECT id FROM tax_returns WHERE tax_year = ${year} AND country = ${country}` as { id: string }[];
-  if (existingRows.length > 0) {
-    await sql`UPDATE tax_returns SET data = ${JSON.stringify(defaults)}::jsonb, sources = '{}'::jsonb, updated_at = NOW() WHERE id = ${existingRows[0].id}`;
-  }
-
+  // Sync from accounts and rental records (layers on top of document-extracted data)
   const { syncTaxReturnsFromAccounts } = await import('@/lib/tax-returns');
   await syncTaxReturnsFromAccounts(year);
 
