@@ -1,30 +1,36 @@
 import { test as setup, expect } from '@playwright/test';
 
 setup('authenticate', async ({ page }) => {
-  // Mock /api/setup — the login page calls this to check if admin exists.
-  // Without this mock, the request hangs trying to connect to the stub DB.
-  await page.route('**/api/setup', async (route) => {
-    await route.fulfill({
-      json: { adminExists: true, dbReady: true, ready: true, vars: [], dbError: '', allRequired: true },
-    });
-  });
+  // Intercept ALL API calls to prevent any DB connection attempts.
+  // This must happen before page.goto() so the browser never hits the real server APIs.
+  await page.route(/\/api\//, async (route) => {
+    const url = route.request().url();
 
-  // Mock dashboard APIs so the redirect to / doesn't hang
-  await page.route('**/api/deadlines', (r) => r.fulfill({ json: [] }));
-  await page.route('**/api/finance**', (r) => r.fulfill({ json: [] }));
-  await page.route('**/api/rentals**', (r) => r.fulfill({ json: [] }));
-  await page.route('**/api/insights', (r) => r.fulfill({ json: { insights: [] } }));
+    if (url.includes('/api/setup')) {
+      return route.fulfill({
+        json: { adminExists: true, dbReady: true, ready: true, vars: [], dbError: '', allRequired: true },
+      });
+    }
+    if (url.includes('/api/auth/')) {
+      // Let NextAuth requests pass through to the real server (env-var auth works)
+      return route.continue();
+    }
+    // Mock everything else to prevent DB hangs
+    return route.fulfill({ json: [] });
+  });
 
   await page.goto('/login');
 
   const username = process.env.ADMIN_USERNAME ?? 'admin';
   const password = process.env.ADMIN_PASSWORD ?? 'password123';
 
+  // Wait for the form to appear (spinner should clear once /api/setup is mocked)
+  await page.getByLabel('Username').waitFor({ timeout: 15000 });
   await page.getByLabel('Username').fill(username);
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: /sign in/i }).click();
 
-  // Wait for redirect to dashboard (env-var auth should work in CI)
+  // Wait for redirect to dashboard (env-var auth)
   await expect(page).toHaveURL('/', { timeout: 15000 });
 
   // Save storage state for authenticated tests
