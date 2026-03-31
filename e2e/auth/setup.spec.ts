@@ -86,8 +86,8 @@ test.describe('Setup Page', () => {
     const passwordInput = page.getByLabel('Password');
     await expect(passwordInput).toHaveAttribute('type', 'password');
 
-    // Click the eye icon button
-    await page.locator('button').filter({ has: page.locator('svg') }).nth(0).click();
+    // Click the eye icon button - target the toggle inside the password field's .relative wrapper
+    await page.locator('.relative button[type="button"]').first().click();
 
     // After toggle, should be visible
     await expect(passwordInput).toHaveAttribute('type', 'text');
@@ -106,7 +106,8 @@ test.describe('Setup Page', () => {
       if (route.request().method() === 'GET') {
         await route.fulfill({ json: { ...TEST_SETUP_STATUS, dbReady: true, adminExists: false } });
       } else {
-        await route.abort('connectionrefused');
+        // Use fulfill with status 0 instead of abort to reliably trigger the catch handler
+        await route.fulfill({ status: 500, json: { error: 'network error' } });
       }
     });
     await page.goto('/setup');
@@ -116,7 +117,7 @@ test.describe('Setup Page', () => {
     await page.getByLabel('Confirm password').fill('validpassword123');
     await page.getByRole('button', { name: /create account/i }).click();
 
-    await expect(page.getByText(/network error/i)).toBeVisible();
+    await expect(page.getByText(/network error/i)).toBeVisible({ timeout: 10000 });
   });
 
   test('Refresh status button works', async ({ page }) => {

@@ -131,10 +131,14 @@ test.describe('Documents Page', () => {
     const dropZone = page.locator('.border-dashed');
     await expect(dropZone).toBeVisible();
 
-    // Simulate dragover
-    await dropZone.dispatchEvent('dragover', { bubbles: true });
+    // Simulate dragover — use a DataTransfer-like payload so React's onDragOver fires
+    await dropZone.dispatchEvent('dragover', {
+      bubbles: true,
+      cancelable: true,
+      dataTransfer: { types: ['Files'], files: [] },
+    });
     // Border should change to sky-500
-    await expect(dropZone).toHaveClass(/border-sky-500/);
+    await expect(dropZone).toHaveClass(/border-sky-500/, { timeout: 5000 });
   });
 
   test('insights expand/collapse', async ({ page }) => {

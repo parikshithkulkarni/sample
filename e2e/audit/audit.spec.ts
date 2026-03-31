@@ -17,10 +17,13 @@ test.describe('Audit Page', () => {
     await mockAuditAPI(page, TEST_AUDIT_DATA);
     await page.goto('/audit');
 
-    await expect(page.getByText('Accounts')).toBeVisible();
-    await expect(page.getByText('5')).toBeVisible(); // totalAccounts
-    await expect(page.getByText('Properties')).toBeVisible();
-    await expect(page.getByText('2').first()).toBeVisible(); // totalProperties
+    const accountsCard = page.locator('.rounded-xl').filter({ hasText: 'Accounts' }).first();
+    await expect(accountsCard).toBeVisible();
+    await expect(accountsCard.getByText('5')).toBeVisible(); // totalAccounts
+
+    const propertiesCard = page.locator('.rounded-xl').filter({ hasText: 'Properties' }).first();
+    await expect(propertiesCard).toBeVisible();
+    await expect(propertiesCard.getByText('2')).toBeVisible(); // totalProperties
   });
 
   test('issues grouped by severity', async ({ page }) => {

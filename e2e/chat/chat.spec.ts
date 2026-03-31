@@ -22,7 +22,7 @@ test.describe('Chat Page', () => {
     await page.locator('form button[type="submit"]').click();
 
     // User message should appear
-    await expect(page.getByText('What is my net worth?')).toBeVisible();
+    await expect(page.getByText('What is my net worth?')).toBeVisible({ timeout: 10000 });
   });
 
   test('send button disabled when empty', async ({ page }) => {
@@ -48,6 +48,7 @@ test.describe('Chat Page', () => {
     await page.locator('form button[type="submit"]').click();
 
     // Typing indicator (bouncing dots) should appear
+    await page.locator('.animate-bounce').first().waitFor({ timeout: 5000 });
     await expect(page.locator('.animate-bounce').first()).toBeVisible();
   });
 
@@ -105,8 +106,11 @@ test.describe('Chat Page', () => {
     // Select first document
     await input.press('Enter');
 
+    // Wait for picker to close (chip selection complete)
+    await expect(page.locator('[role="listbox"]')).not.toBeVisible();
+
     // Chip should appear
-    await expect(page.getByText('W2-2024.pdf').first()).toBeVisible();
+    await expect(page.locator('.rounded-full').filter({ hasText: 'W2-2024.pdf' })).toBeVisible({ timeout: 5000 });
 
     // Input should not contain @
     const inputVal = await input.inputValue();

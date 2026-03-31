@@ -23,7 +23,7 @@ test.describe('Tax Returns Page', () => {
     await expect(page.getByText('India')).toBeVisible();
 
     // Click India toggle
-    await page.getByRole('button', { name: 'India' }).click();
+    await page.getByRole('button', { name: /india/i }).click();
 
     // Should show India form fields
     await expect(page.getByText(/residential status|regime/i)).toBeVisible({ timeout: 5000 });
@@ -52,7 +52,7 @@ test.describe('Tax Returns Page', () => {
     await mockTaxReturnsAPI(page, indiaReturn);
     await page.goto('/taxes');
 
-    await page.getByRole('button', { name: 'India' }).click();
+    await page.getByRole('button', { name: /india/i }).click();
   });
 
   test('auto-save debounce fires after 800ms', async ({ page }) => {

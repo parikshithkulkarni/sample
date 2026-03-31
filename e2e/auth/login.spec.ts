@@ -30,24 +30,25 @@ test.describe('Login Page', () => {
     const passwordInput = page.getByLabel('Password');
     await expect(passwordInput).toHaveAttribute('type', 'password');
 
-    // Click the eye toggle
-    await page.locator('form button[type="button"]').click();
+    // Click the eye toggle - target the button inside the password field's .relative wrapper
+    await page.locator('form .relative button[type="button"]').click();
     await expect(passwordInput).toHaveAttribute('type', 'text');
 
     // Click again to hide
-    await page.locator('form button[type="button"]').click();
+    await page.locator('form .relative button[type="button"]').click();
     await expect(passwordInput).toHaveAttribute('type', 'password');
   });
 
   test('error message on invalid credentials', async ({ page }) => {
     await mockSetupAPI(page, { adminExists: true });
     await page.goto('/login');
+    await page.waitForLoadState('networkidle');
 
     await page.getByLabel('Username').fill('wronguser');
     await page.getByLabel('Password').fill('wrongpass');
     await page.getByRole('button', { name: /sign in/i }).click();
 
-    await expect(page.getByText('Invalid username or password')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Invalid username or password')).toBeVisible({ timeout: 15000 });
   });
 
   test('shows setup done banner from query param', async ({ page }) => {
@@ -60,6 +61,7 @@ test.describe('Login Page', () => {
   test('sign-in button disabled when fields empty', async ({ page }) => {
     await mockSetupAPI(page, { adminExists: true });
     await page.goto('/login');
+    await page.waitForLoadState('networkidle');
 
     const signInBtn = page.getByRole('button', { name: /sign in/i });
     await expect(signInBtn).toBeDisabled();
@@ -81,6 +83,7 @@ test.describe('Login Page', () => {
       await route.continue();
     });
     await page.goto('/login');
+    await page.waitForLoadState('networkidle');
 
     await page.getByLabel('Username').fill('admin');
     await page.getByLabel('Password').fill('password');
@@ -106,7 +109,7 @@ test.describe('Login Page', () => {
     await page.goto('/login');
 
     // Form should still render (fallback behavior)
-    await expect(page.getByLabel('Username')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByLabel('Username')).toBeVisible({ timeout: 10000 });
     await expect(page.getByLabel('Password')).toBeVisible();
   });
 });

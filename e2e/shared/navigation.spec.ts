@@ -7,10 +7,17 @@ test.describe('Navigation', () => {
     await mockDashboardAPIs(page, {});
     // Mock other page APIs
     await page.route('**/api/finance/cleanup', (r) => r.fulfill({ json: {} }));
+    await page.route('**/api/finance/dedup', (r) => r.fulfill({ json: { merged: 0 } }));
+    await page.route('**/api/finance/snapshots', (r) => r.fulfill({ json: [] }));
+    await page.route('**/api/finance/*', (r) => r.fulfill({ json: {} }));
     await page.route('**/api/documents', (r) => r.fulfill({ json: [] }));
+    await page.route('**/api/documents/**', (r) => r.fulfill({ json: [] }));
     await page.route('**/api/audit', (r) => r.fulfill({ json: { summary: { totalAccounts: 0, totalProperties: 0, totalDocuments: 0, documentsExtracted: 0, documentsNotExtracted: 0, totalRentalRecords: 0, issuesByType: {}, autoFixableCount: 0 }, issues: [], accounts: [], properties: [], documents: [] } }));
     await page.route('**/api/tax-returns*', (r) => r.fulfill({ json: { id: null, tax_year: 2024, country: 'US', data: {}, sources: {}, updated_at: null } }));
     await page.route('**/api/chat/sessions', (r) => r.fulfill({ json: [] }));
+    await page.route('**/api/rentals/**', (r) => r.fulfill({ json: [] }));
+    await page.route('**/api/rentals/dedup', (r) => r.fulfill({ json: { merged: 0 } }));
+    await page.route('**/api/scenarios', (r) => r.fulfill({ json: {} }));
   });
 
   test('shows all navigation links', async ({ page }) => {
@@ -36,18 +43,23 @@ test.describe('Navigation', () => {
     await page.goto('/');
 
     await page.getByRole('link', { name: /finance/i }).click();
+    await page.waitForURL('/finance');
     await expect(page).toHaveURL('/finance');
 
     await page.getByRole('link', { name: /chat/i }).click();
+    await page.waitForURL('/chat');
     await expect(page).toHaveURL('/chat');
 
     await page.getByRole('link', { name: /docs/i }).click();
+    await page.waitForURL('/documents');
     await expect(page).toHaveURL('/documents');
 
     await page.getByRole('link', { name: /rentals/i }).click();
+    await page.waitForURL('/rentals');
     await expect(page).toHaveURL('/rentals');
 
     await page.getByRole('link', { name: /home/i }).click();
+    await page.waitForURL('/');
     await expect(page).toHaveURL('/');
   });
 

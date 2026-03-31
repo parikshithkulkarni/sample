@@ -32,14 +32,18 @@ test.describe('Deadlines Page', () => {
     await mockDeadlinesAPI(page, TEST_DEADLINES);
     await page.goto('/deadlines');
 
-    // Find the first undone deadline's toggle button
-    const deadlineItem = page.getByText('Federal Tax Return').locator('..');
-    const toggleBtn = deadlineItem.locator('button').first();
+    // Find the first undone deadline's toggle button.
+    // In deadline-list.tsx, the toggle button is the first button in each <li>,
+    // containing either Circle (undone) or CheckCircle (done) SVG.
+    const deadlineItem = page.locator('li').filter({ hasText: 'Federal Tax Return' });
+    await expect(deadlineItem).toBeVisible();
+    // Federal Tax Return starts as is_done: false, so it has Circle SVG
+    const toggleBtn = deadlineItem.locator('button').filter({ has: page.locator('svg.lucide-circle') }).first();
     await toggleBtn.click();
 
     // Should immediately show as done (optimistic update)
-    // The check circle should appear
-    await expect(deadlineItem.locator('svg')).toBeVisible();
+    // The CheckCircle should appear after toggling
+    await expect(deadlineItem.locator('svg.lucide-check-circle')).toBeVisible();
   });
 
   test('Bug: mark done reverts on API error', async ({ page }) => {
@@ -56,13 +60,19 @@ test.describe('Deadlines Page', () => {
     });
     await page.goto('/deadlines');
 
-    // Toggle a deadline
-    const deadlineItem = page.getByText('Federal Tax Return').locator('..');
-    const toggleBtn = deadlineItem.locator('button').first();
+    // Federal Tax Return starts as is_done: false, so it has Circle SVG
+    const deadlineItem = page.locator('li').filter({ hasText: 'Federal Tax Return' });
+    await expect(deadlineItem).toBeVisible();
+
+    // Find the toggle button with Circle SVG (undone state)
+    const toggleBtn = deadlineItem.locator('button').filter({ has: page.locator('svg.lucide-circle') }).first();
+
+    // Optimistic update should briefly show CheckCircle
     await toggleBtn.click();
 
-    // Wait for revert - the deadline should revert to undone after API failure
-    await page.waitForTimeout(1000);
+    // After API failure, the toast should appear and the state should revert to undone (Circle)
+    await expect(page.getByText('Failed to update deadline')).toBeVisible({ timeout: 5000 });
+    await expect(deadlineItem.locator('svg.lucide-circle')).toBeVisible({ timeout: 5000 });
   });
 
   test('delete deadline', async ({ page }) => {
@@ -72,9 +82,10 @@ test.describe('Deadlines Page', () => {
     const deadlineText = page.getByText('H1B Visa Renewal');
     await expect(deadlineText).toBeVisible();
 
-    // Click the trash button
-    const deadlineRow = deadlineText.locator('..').locator('..');
-    await deadlineRow.locator('button').last().click();
+    // Click the trash button — in the component, the Trash2 button is in the right-side div
+    const deadlineLi = page.locator('li').filter({ hasText: 'H1B Visa Renewal' });
+    const trashBtn = deadlineLi.locator('button').filter({ has: page.locator('svg.lucide-trash-2') });
+    await trashBtn.click();
 
     // Should be removed
     await expect(deadlineText).not.toBeVisible();
@@ -139,16 +150,24 @@ test.describe('Deadlines Page', () => {
     await mockDeadlinesAPI(page, TEST_DEADLINES);
     await page.goto('/deadlines');
 
-    // Rapidly toggle a deadline
-    const deadlineItem = page.getByText('Federal Tax Return').locator('..');
+    // Wait for the deadline to be visible before interacting
+    const deadlineItem = page.locator('li').filter({ hasText: 'Federal Tax Return' });
+    await expect(deadlineItem).toBeVisible();
+
+    // Find the toggle button (the first button in the li, which contains Circle or CheckCircle)
     const toggleBtn = deadlineItem.locator('button').first();
 
-    // Click rapidly 3 times
+    // Click rapidly 3 times (toggle: done -> undone -> done)
     await toggleBtn.click();
     await toggleBtn.click();
     await toggleBtn.click();
 
     // UI should still be stable (no crash or frozen state)
     await expect(page.getByText('Federal Tax Return')).toBeVisible();
+
+    // After 3 toggles from undone: done -> undone -> done.
+    // The final state should show either CheckCircle (done) or Circle (undone) depending on timing.
+    // The key assertion is that the UI is not broken — at least one icon is visible.
+    await expect(deadlineItem.locator('svg.lucide-check-circle, svg.lucide-circle').first()).toBeVisible();
   });
 });
