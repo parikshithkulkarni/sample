@@ -102,7 +102,21 @@ const INCOME_TAX_CATEGORIES = new Set([
   'employment_income', 'self_employment_income', 'partnership_income',
   'interest_income', 'dividend_income', 'capital_gains', 'rental_income',
   'tax_prepayment', 'retirement_distribution',
+  'other_income', 'wages', 'salary', 'dividends', 'escrow', 'escrow_disbursement',
 ]);
+
+// Name patterns that indicate an entry is income/tax, not a real asset
+const INCOME_NAME_PATTERNS = [
+  /\bwages?\b/i,
+  /\bsalary\b/i,
+  /\brental\s*income\b/i,
+  /\bdividends?\b/i,
+  /\bsubstitute\s*payments?\b/i,
+  /\bescrow\s*(balance|disbursement)\b/i,
+  /\bhazard\s*insurance\s*paid\b/i,
+  /\binterest\s*(income|earned)\b/i,
+  /\bcapital\s*gains?\b/i,
+];
 
 function getSemanticGroup(account: Account): string {
   const cat = account.category.toLowerCase();
@@ -110,6 +124,7 @@ function getSemanticGroup(account: Account): string {
   for (const group of SEMANTIC_GROUPS) {
     if (group.categories.includes(cat)) return group.key;
   }
+  if (INCOME_NAME_PATTERNS.some(p => p.test(account.name))) return 'tax_records';
   return account.type === 'asset' ? 'other_assets' : 'other_liabilities';
 }
 
