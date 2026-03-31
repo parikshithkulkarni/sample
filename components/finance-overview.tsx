@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Check, X, GitMerge, ChevronDown, ChevronUp, Landmark, TrendingUp, Wallet, Building2, Shield, Briefcase, CreditCard, PiggyBank, Coins, RefreshCw } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, X, GitMerge, ChevronDown, ChevronUp, Landmark, TrendingUp, Wallet, Building2, Shield, Briefcase, CreditCard, PiggyBank, Coins, RefreshCw, Sparkles, Loader2 } from 'lucide-react';
 import { fmt } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import NetWorthChart from '@/components/net-worth-chart';
@@ -102,7 +102,21 @@ const INCOME_TAX_CATEGORIES = new Set([
   'employment_income', 'self_employment_income', 'partnership_income',
   'interest_income', 'dividend_income', 'capital_gains', 'rental_income',
   'tax_prepayment', 'retirement_distribution',
+  'other_income', 'wages', 'salary', 'dividends', 'escrow', 'escrow_disbursement',
 ]);
+
+// Name patterns that indicate an entry is income/tax, not a real asset
+const INCOME_NAME_PATTERNS = [
+  /\bwages?\b/i,
+  /\bsalary\b/i,
+  /\brental\s*income\b/i,
+  /\bdividends?\b/i,
+  /\bsubstitute\s*payments?\b/i,
+  /\bescrow\s*(balance|disbursement)\b/i,
+  /\bhazard\s*insurance\s*paid\b/i,
+  /\binterest\s*(income|earned)\b/i,
+  /\bcapital\s*gains?\b/i,
+];
 
 function getSemanticGroup(account: Account): string {
   const cat = account.category.toLowerCase();
@@ -110,6 +124,7 @@ function getSemanticGroup(account: Account): string {
   for (const group of SEMANTIC_GROUPS) {
     if (group.categories.includes(cat)) return group.key;
   }
+  if (INCOME_NAME_PATTERNS.some(p => p.test(account.name))) return 'tax_records';
   return account.type === 'asset' ? 'other_assets' : 'other_liabilities';
 }
 
@@ -162,6 +177,9 @@ export default function FinanceOverview() {
   const [editBalance, setEditBalance] = useState('');
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [form, setForm] = useState({ name: '', type: 'asset' as 'asset' | 'liability', category: '', balance: '', currency: 'USD', notes: '' });
+  const [analyzing, setAnalyzing] = useState(false);
+  const [findings, setFindings] = useState<{ title: string; description: string; severity: string; category: string }[]>([]);
+  const [showFindings, setShowFindings] = useState(false);
 
   // Detect duplicate groups: same normalized name
   const dupGroups: Account[][] = (() => {
@@ -192,7 +210,7 @@ export default function FinanceOverview() {
   }, []);
 
   // Exclude income/tax records from net worth — they aren't real account balances
-  const realAccounts = accounts.filter((a) => !INCOME_TAX_CATEGORIES.has(a.category.toLowerCase()));
+  const realAccounts = accounts.filter((a) => getSemanticGroup(a) !== 'tax_records');
   const assets = realAccounts.filter((a) => a.type === 'asset');
   const liabilities = realAccounts.filter((a) => a.type === 'liability');
   const totalAssets = assets.reduce((s, a) => s + Number(a.balance), 0);
@@ -411,8 +429,27 @@ export default function FinanceOverview() {
         </div>
       )}
 
-      {/* Sync button */}
-      <div className="flex justify-end">
+      {/* Sync + AI Analysis buttons */}
+      <div className="flex justify-end gap-2">
+        <button
+          onClick={async () => {
+            setAnalyzing(true);
+            try {
+              const res = await fetch('/api/finance/analyze', { method: 'POST' });
+              if (res.ok) {
+                const data = await res.json() as { findings: typeof findings };
+                setFindings(data.findings ?? []);
+                setShowFindings(true);
+              }
+            } catch { addToast('Analysis failed', 'error'); }
+            finally { setAnalyzing(false); }
+          }}
+          disabled={analyzing || accounts.length === 0}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/40 disabled:opacity-50 font-medium"
+        >
+          {analyzing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+          {analyzing ? 'Analyzing…' : 'AI Analysis'}
+        </button>
         <button
           onClick={syncFromDocs}
           disabled={syncing}
@@ -422,6 +459,35 @@ export default function FinanceOverview() {
           {syncing ? 'Syncing…' : 'Sync from docs'}
         </button>
       </div>
+
+      {/* AI Analysis findings */}
+      {showFindings && findings.length > 0 && (
+        <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-amber-200 dark:border-amber-800">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300 font-semibold">
+              <Sparkles size={14} /> AI Analysis
+            </div>
+            <button onClick={() => setShowFindings(false)} className="text-gray-400 hover:text-gray-600">
+              <X size={14} />
+            </button>
+          </div>
+          <ul className="space-y-2">
+            {findings.map((f, i) => (
+              <li key={i} className="text-sm">
+                <div className="flex items-start gap-2">
+                  <span className={`shrink-0 w-1.5 h-1.5 rounded-full mt-1.5 ${
+                    f.severity === 'high' ? 'bg-red-500' : f.severity === 'medium' ? 'bg-amber-500' : 'bg-sky-500'
+                  }`} />
+                  <div>
+                    <span className="font-medium text-gray-800 dark:text-gray-200">{f.title}</span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{f.description}</p>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Net worth card */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">

@@ -9,6 +9,7 @@ interface Doc {
   tags: string[];
   summary: string | null;
   insights: string[] | null;
+  doc_type: string | null;
   added_at: string;
   extracted_at: string | null;
 }
@@ -225,7 +226,14 @@ export default function DocumentList({ refresh = 0 }: Props) {
           <div className="p-4">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{d.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{d.name}</p>
+                  {d.doc_type && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 shrink-0">
+                      {d.doc_type.replace(/_/g, ' ')}
+                    </span>
+                  )}
+                </div>
                 {d.summary && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{d.summary}</p>}
                 <div className="flex flex-wrap gap-1 mt-2">
                   {d.tags?.map((tag, ti) => (

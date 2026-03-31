@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CheckCircle, Circle, Trash2, Plus, CalendarX } from 'lucide-react';
+import { CheckCircle, Circle, Trash2, Plus, CalendarX, Sparkles, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { daysUntil } from '@/lib/utils';
 import { SkeletonList } from '@/components/skeleton';
 import { useToast } from '@/components/toast';
@@ -12,6 +12,7 @@ interface Deadline {
   due_date: string;
   category: string;
   notes: string | null;
+  ai_context: string | null;
   is_done: boolean;
   is_recurring: boolean;
 }
@@ -40,6 +41,8 @@ export default function DeadlineList() {
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ title: '', due_date: '', category: 'other', notes: '' });
+  const [enriching, setEnriching] = useState<string | null>(null);
+  const [expandedContext, setExpandedContext] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/deadlines').then((r) => r.json()).then((d) => { setDeadlines(Array.isArray(d) ? d : d?.data ?? []); setLoading(false); });
@@ -65,6 +68,19 @@ export default function DeadlineList() {
   async function remove(id: string) {
     await fetch(`/api/deadlines/${id}`, { method: 'DELETE' });
     setDeadlines((prev) => prev.filter((d) => d.id !== id));
+  }
+
+  async function enrichDeadline(id: string) {
+    setEnriching(id);
+    try {
+      const res = await fetch(`/api/deadlines/${id}/enrich`, { method: 'POST' });
+      if (res.ok) {
+        const updated = await res.json() as Deadline;
+        setDeadlines((prev) => prev.map((d) => d.id === id ? { ...d, ai_context: updated.ai_context } : d));
+        setExpandedContext(id);
+      }
+    } catch { /* non-fatal */ }
+    finally { setEnriching(null); }
   }
 
   async function addDeadline(e: React.FormEvent) {
@@ -154,10 +170,35 @@ export default function DeadlineList() {
                       )}
                     </p>
                     {d.notes && <p className="text-xs text-gray-400 mt-1">{d.notes}</p>}
+                    {/* AI context */}
+                    {d.ai_context && (
+                      <button
+                        onClick={() => setExpandedContext(expandedContext === d.id ? null : d.id)}
+                        className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 mt-1.5 hover:underline"
+                      >
+                        <Sparkles size={10} /> AI Context
+                        {expandedContext === d.id ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                      </button>
+                    )}
+                    {expandedContext === d.id && d.ai_context && (
+                      <p className="text-xs text-gray-600 dark:text-gray-300 mt-1.5 bg-amber-50 dark:bg-amber-950/20 rounded-lg p-2 whitespace-pre-wrap">{d.ai_context}</p>
+                    )}
                   </div>
-                  <button onClick={() => remove(d.id)} className="text-gray-300 hover:text-red-400 shrink-0">
-                    <Trash2 size={16} />
-                  </button>
+                  <div className="flex flex-col gap-1 shrink-0">
+                    {!d.ai_context && (
+                      <button
+                        onClick={() => enrichDeadline(d.id)}
+                        disabled={enriching === d.id}
+                        className="text-gray-300 hover:text-amber-500 disabled:opacity-50"
+                        title="Generate AI context"
+                      >
+                        {enriching === d.id ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                      </button>
+                    )}
+                    <button onClick={() => remove(d.id)} className="text-gray-300 hover:text-red-400">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </li>
               );
             })}

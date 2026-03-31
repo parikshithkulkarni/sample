@@ -2,6 +2,7 @@ import { sql } from '@/lib/db';
 import Anthropic from '@anthropic-ai/sdk';
 import { extractionOutputSchema } from '@/lib/validators';
 import { JSON_ANCHORS } from '@/lib/constants';
+import { buildExtractionPrompt } from '@/lib/prompts';
 
 const anthropic = new Anthropic();
 
@@ -85,206 +86,8 @@ export function parseNum(v: unknown): number | null {
   return isNaN(num) ? null : num * multiplier;
 }
 
-export function buildExtractionPrompt(
-  docName: string,
-  docText: string,
-  existingAccountsList: string,
-  existingPropertiesList: string,
-): string {
-  return `You are filling in a personal finance dashboard from a document. Extract financial data carefully.
-
-## Finance page — Accounts
-Only create accounts for REAL financial accounts and holdings — things that hold a balance over time.
-
-Each account has:
-- name: descriptive string, e.g. "Chase Checking", "Fidelity 401k", "Apple RSU"
-- type: exactly "asset" or "liability"
-- category: MUST be one of the following:
-    Assets: checking, savings, money_market, cd, treasury, bond, brokerage, rsu, espp, iso_options, nso_options, startup_equity, angel_investment, crypto, commodity, collectibles, 401k, roth_ira, ira, pension, annuity, hsa, 529_plan, life_insurance, real_estate, other
-    Liabilities: mortgage, heloc, auto_loan, credit_card, student_loan, personal_loan, tax_liability, margin_loan, other
-- balance: current account balance as positive number in USD
-- currency: "USD" (or actual currency if foreign)
-- notes: optional short string for extra context
-
-DO NOT create accounts for:
-- Income records (W-2 wages, 1099 income, dividends received, interest earned, capital gains)
-- Tax withholdings or prepayments
-- One-time transactions or events
-- Historical income that isn't a current balance
-These belong on the Tax Returns page, not Finance.
-
-ONLY create an account if it represents a REAL FINANCIAL ACCOUNT with a CURRENT BALANCE:
-- ✅ "Fidelity 401k" balance $450,000 — a retirement account
-- ✅ "Chase Checking" balance $12,000 — a bank account
-- ✅ "Robinhood Brokerage" balance $25,000 — an investment account
-- ✅ "PHH Mortgage - 1014 Terrace" balance $213,000 — a real debt
-- ❌ "2024 Wages - Google" — income, not an account
-- ❌ "Federal Tax Withheld" — tax record, not an account
-- ❌ "Capital Gains 2024" — a gain/loss, not an account
-- ❌ "Interest Income 2024" — income, not an account
-- ❌ "Robinhood Short-Term Sale Proceeds" — a transaction, not an account
-- ❌ "Mortgage Interest Paid YTD" — an expense, not an account
-- ❌ "Wash Sale Loss Disallowed" — a tax adjustment, not an account
-- ❌ "Health Insurance Expense" — an expense, not an account
-- ❌ "Subscription Fees 2025" — an expense, not an account
-- ❌ "Employer Health Coverage" — a benefit, not an account
-- ❌ "Realized Gains - Long Term" — a gain, not an account
-- ❌ "NVDA Short-Term Sales 2025" — a trade, not an account
-Put ALL income, gains, losses, expenses, withholdings into tax_data instead.
-
-## Rentals page — Properties
-Each property has:
-- address: full street address string
-- purchase_price: number or null
-- purchase_date: "YYYY-MM-DD" string or null
-- market_value: current estimated value as number or null
-- mortgage_balance: remaining mortgage owed as number or null
-- notes: optional string
-
-## Rental Records — Monthly P&L per property
-If the document contains rental income/expense data (1098, 1099-MISC, property management statements, lease agreements, etc.), extract monthly or annual rental records.
-Each rental_record has:
-- address: the property address this record belongs to (must match a property above)
-- year: integer (e.g. 2024)
-- month: integer 1-12 (if only annual data, use month 12 for the full year total)
-- rent_collected: monthly rent income as number (0 if unknown)
-- mortgage_pmt: monthly mortgage payment as number (0 if unknown)
-- vacancy_days: integer (0 if unknown)
-- expenses: object with any of these keys (all numbers, 0 if not applicable):
-    property_tax, insurance, maintenance, repairs, hoa, management, utilities,
-    landscaping, pest_control, cleaning, advertising, legal, accounting,
-    capital_improvements, supplies, travel, other
-- notes: optional string
-
-### What to extract as rental records:
-- 1098 Mortgage Interest Statement → mortgage interest = mortgage_pmt (monthly ÷ 12 if annual), property_tax from Box 10
-- 1099-MISC Box 1 (Rents) → rent_collected
-- Property management statements → rent_collected, management fees, maintenance, repairs
-- Insurance declarations → insurance amount
-- HOA statements → hoa amount
-- Lease agreements → rent_collected amount, property address
-- Schedule E data → rental income, expenses by category
-
-## Tax & Income Documents
-For W-2, 1099, pay stubs, K-1 etc., extract ONLY actual account balances:
-- W-2 Box 12 Code D (401k) → create account: { name: "[Employer] 401k", type: "asset", category: "401k" }
-- W-2 Box 12 Code W (HSA) → create account: { name: "HSA", type: "asset", category: "hsa" }
-DO NOT create accounts for income amounts (wages, interest, dividends, capital gains) or tax withholdings.
-## Already in the system (DO NOT duplicate these):
-Accounts already added:
-${existingAccountsList}
-
-Properties already added:
-${existingPropertiesList}
-
-## Document to extract from:
-Name: "${docName}"
----
-${docText}
----
-
-## Tax Data (W-2, 1099, K-1, pay stubs, etc.)
-If the document contains income, tax, or withholding data, extract it into the tax_data section.
-Do NOT create "accounts" for income — put it here instead.
-Each tax_data entry has:
-- tax_year: integer (e.g. 2024)
-- field: dotted path to the tax return field (see mapping below)
-- amount: number
-- notes: optional string for context
-
-### US tax field mappings:
-Income:
-- W-2 Box 1 wages → field: "us.income.wages"
-- 1099-INT interest → field: "us.income.interest"
-- 1099-DIV ordinary dividends → field: "us.income.ordinary_dividends"
-- 1099-DIV qualified dividends → field: "us.income.qualified_dividends"
-- 1099-B short-term capital gains → field: "us.income.st_capital_gains"
-- 1099-B long-term capital gains → field: "us.income.lt_capital_gains"
-- 1099-R retirement distributions → field: "us.income.ira_distributions"
-- 1099-R pension/annuity → field: "us.income.pension_annuity"
-- 1099-NEC/MISC self-employment → field: "us.income.business_income"
-- K-1 business/partnership income → field: "us.income.business_income"
-- Schedule E rental income → field: "us.income.rental_income"
-- Social Security benefits → field: "us.income.social_security"
-- Any other income → field: "us.income.other_income"
-
-Adjustments:
-- W-2 Box 12 Code D (401k contribution) → field: "us.adjustments.k401_contributions"
-- W-2 Box 12 Code W (HSA contribution) → field: "us.adjustments.hsa_deduction"
-- Traditional IRA deduction → field: "us.adjustments.ira_deduction"
-- Student loan interest (1098-E) → field: "us.adjustments.student_loan_interest"
-- Self-employment tax (half) → field: "us.adjustments.self_employment_tax"
-- Educator expenses → field: "us.adjustments.educator_expenses"
-
-Deductions:
-- 1098 mortgage interest paid → field: "us.deductions.mortgage_interest"
-- Property tax paid (1098 Box 10) → field: "us.deductions.salt"
-- State/local income tax paid → field: "us.deductions.salt" (additive with property tax)
-- Charitable contributions (cash/noncash) → field: "us.deductions.charitable"
-- Medical/dental expenses → field: "us.deductions.medical_expenses"
-
-Credits:
-- Foreign tax paid (1099-DIV Box 7, 1116) → field: "us.credits.foreign_tax"
-- Education credits (1098-T) → field: "us.credits.education"
-
-Taxes:
-- Self-employment tax → field: "us.other_taxes.se_tax"
-- Net investment income tax → field: "us.other_taxes.niit"
-
-Payments:
-- W-2 Box 2 federal withheld → field: "us.payments.federal_withheld"
-- W-2 Box 17 state withheld → field: "us.payments.state_withheld"
-- 1099 federal withheld → field: "us.payments.federal_withheld" (additive)
-- Estimated tax payments (1040-ES) → field: "us.payments.estimated_payments"
-
-ISO/AMT:
-- ISO exercise: shares → field: "us.iso_amt.shares_exercised"
-- ISO exercise: FMV at exercise → field: "us.iso_amt.fmv_at_exercise"
-- ISO exercise: strike price → field: "us.iso_amt.exercise_price"
-
-FBAR:
-- If foreign accounts mentioned with balance > $10k → include in notes
-
-### India tax field mappings:
-- Salary income → field: "india.income.salary"
-- TDS on salary (Form 16) → field: "india.taxes_paid.tds_salary"
-- TDS on other income → field: "india.taxes_paid.tds_other"
-- Interest income (FD, savings) → field: "india.income.interest_income"
-- House property rent → field: "india.income.house_property_rent"
-- Home loan interest → field: "india.income.home_loan_interest"
-- STCG equity → field: "india.income.st_equity_gains"
-- LTCG equity → field: "india.income.lt_equity_gains"
-- Business/profession income → field: "india.income.business_income"
-- Foreign income → field: "india.income.foreign_income"
-- Advance tax paid → field: "india.taxes_paid.advance_tax"
-- Section 80C (PPF/ELSS/LIC/etc.) → field: "india.deductions.sec_80c"
-- Section 80D health insurance → field: "india.deductions.sec_80d"
-- NPS 80CCD(1B) → field: "india.deductions.sec_80ccd_1b"
-- Employer NPS 80CCD(2) → field: "india.deductions.sec_80ccd_2"
-
-Extract EVERYTHING. Be aggressive — include partial data (use null for unknown fields).
-Skip accounts/properties already in the system above.
-
-Return ONLY valid JSON (no markdown fences, no explanation).
-ALL numeric fields must be plain JSON numbers — integer or decimal, no quotes, no $ signs, no commas.
-CORRECT: 450000   WRONG: "450,000" or "$450k"
-
-{
-  "accounts": [
-    { "name": "...", "type": "asset"|"liability", "category": "...", "balance": 450000, "currency": "USD", "notes": "..." }
-  ],
-  "properties": [
-    { "address": "...", "purchase_price": 450000, "purchase_date": "2020-06-15", "market_value": 620000, "mortgage_balance": 310000, "notes": "" }
-  ],
-  "rental_records": [
-    { "address": "123 Main St", "year": 2024, "month": 1, "rent_collected": 2500, "mortgage_pmt": 1800, "vacancy_days": 0, "expenses": { "property_tax": 300, "insurance": 150, "management": 250 }, "notes": "" }
-  ],
-  "tax_data": [
-    { "tax_year": 2024, "field": "us.income.wages", "amount": 180000, "notes": "W-2 Box 1 from Google" },
-    { "tax_year": 2024, "field": "us.payments.federal_withheld", "amount": 35000, "notes": "W-2 Box 2" }
-  ]
-}`;
-}
+// Re-export for backwards compatibility with existing imports
+export { buildExtractionPrompt } from '@/lib/prompts';
 
 export async function extractAndInsert(documentId: string): Promise<{ accounts: string[]; properties: string[]; rentalRecords: string[]; taxData: string[] }> {
   // Sample chunks spread evenly across the whole document
@@ -337,10 +140,28 @@ export async function extractAndInsert(documentId: string): Promise<{ accounts: 
     const insertedAccounts: string[] = [];
     const insertedProperties: string[] = [];
 
+    // Categories that are income/tax records, not real balance-sheet accounts
+    const INCOME_CATEGORIES = new Set([
+      'employment_income', 'self_employment_income', 'partnership_income',
+      'interest_income', 'dividend_income', 'capital_gains', 'rental_income',
+      'tax_prepayment', 'retirement_distribution', 'capital_gains_short_term',
+      'capital_gains_long_term', 'other_income', 'wages', 'salary', 'dividends',
+      'escrow', 'escrow_disbursement',
+    ]);
+    // Name patterns that indicate income/tax, not a real account
+    const INCOME_NAME_PATTERNS = [
+      /\bwages?\b/i, /\bsalary\b/i, /\brental\s*income\b/i, /\bdividends?\b/i,
+      /\bsubstitute\s*payments?\b/i, /\bescrow\s*(balance|disbursement)\b/i,
+      /\bhazard\s*insurance\s*paid\b/i, /\binterest\s*(income|earned)\b/i,
+      /\bcapital\s*gains?\b/i, /\b(gross|net)\s*(pay|income|wages)\b/i,
+    ];
+
     const allAccounts = await sql`SELECT id, name, balance FROM accounts` as { id: string; name: string; balance: number }[];
     for (const acct of parsed.accounts ?? []) {
       if (!acct.name || !acct.type || !acct.category) continue;
       const category = acct.category.toLowerCase().replace(/[^a-z0-9_]/g, '_') || 'other';
+      // Skip income/tax items — they should be in tax_data, not accounts
+      if (INCOME_CATEGORIES.has(category) || INCOME_NAME_PATTERNS.some(p => p.test(acct.name))) continue;
       const balance = parseNum(acct.balance) ?? 0;
       // Upsert: update if match found, insert if new
       const match = allAccounts.find(a => accountNamesMatch(a.name, acct.name));

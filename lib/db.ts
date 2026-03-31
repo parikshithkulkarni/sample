@@ -158,6 +158,11 @@ export async function runMigrations() {
   // Add sources column to track where each field value came from
   await sql`ALTER TABLE tax_returns ADD COLUMN IF NOT EXISTS sources JSONB NOT NULL DEFAULT '{}'`;
   await sql`CREATE INDEX IF NOT EXISTS tax_returns_year_idx ON tax_returns (tax_year DESC, country)`;
+
+  // ── Phase 2+5+7 migrations ────────────────────────────────────────────────
+  await sql`ALTER TABLE documents ADD COLUMN IF NOT EXISTS doc_type TEXT`;
+  await sql`ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS summary TEXT`;
+  await sql`ALTER TABLE deadlines ADD COLUMN IF NOT EXISTS ai_context TEXT`;
 }
 
 // ── Seed data ─────────────────────────────────────────────────────────────────

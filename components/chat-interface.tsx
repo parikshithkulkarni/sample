@@ -50,6 +50,8 @@ export default function ChatInterface({ initialQuestion }: Props) {
   const [mentionStart, setMentionStart]   = useState(-1);
   const [pickerIndex, setPickerIndex]     = useState(0);
 
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+
   const inputRef  = useRef<HTMLInputElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -66,11 +68,15 @@ export default function ChatInterface({ initialQuestion }: Props) {
     },
   });
 
-  // Load docs for @mention
+  // Load docs for @mention + suggestions
   useEffect(() => {
     fetch('/api/documents')
       .then((r) => r.json())
       .then((res) => { const docs = Array.isArray(res) ? res : res?.data ?? []; setAllDocs(docs.map((d: DocOption) => ({ id: d.id, name: d.name }))); })
+      .catch(() => {});
+    fetch('/api/chat/suggestions')
+      .then((r) => r.json())
+      .then((res) => { if (res.suggestions) setSuggestions(res.suggestions); })
       .catch(() => {});
   }, []);
 
@@ -206,9 +212,22 @@ export default function ChatInterface({ initialQuestion }: Props) {
             <p className="text-2xl mb-2">🧠</p>
             <p className="mb-1">Ask anything about your finances,</p>
             <p className="mb-3">documents, taxes, or the web.</p>
-            <p className="text-xs bg-gray-50 dark:bg-gray-800 rounded-xl px-3 py-2 inline-block">
+            <p className="text-xs bg-gray-50 dark:bg-gray-800 rounded-xl px-3 py-2 inline-block mb-4">
               Tip: type <span className="font-mono font-semibold text-sky-600">@</span> to attach a document
             </p>
+            {suggestions.length > 0 && (
+              <div className="flex flex-wrap justify-center gap-2 mt-2 max-w-md mx-auto">
+                {suggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { append({ role: 'user', content: s }); }}
+                    className="text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 rounded-full px-3 py-1.5 hover:bg-sky-50 dark:hover:bg-sky-950/30 hover:border-sky-300 dark:hover:border-sky-700 hover:text-sky-700 dark:hover:text-sky-300 transition-colors"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
         {messages.map((m) => (

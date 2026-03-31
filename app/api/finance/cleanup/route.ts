@@ -12,6 +12,7 @@ const JUNK_CATEGORIES = new Set([
   'capital_gains_long_term', 'wash_sale_disallowed', 'mortgage_interest_expense',
   'brokerage_sale_proceeds', 'subscription_expense', 'health_insurance_expense',
   'mortgage_insurance_expense', 'employer_health_coverage',
+  'other_income', 'wages', 'salary', 'dividends', 'escrow', 'escrow_disbursement',
 ]);
 
 // Name patterns that indicate an entry is NOT a real account
@@ -25,8 +26,16 @@ const JUNK_NAME_PATTERNS = [
   /\blong[- ]term\s*(loss|gain|sale)/i,
   /\binterest\s*(income|earned)\b/i,
   /\bdividend\s*(income|received)\b/i,
+  /\bdividends?\b.*\d{4}/i,
+  /\d{4}.*\bdividends?\b/i,
   /\bwages?\b.*\d{4}/i,
+  /\d{4}\s*wages?\b/i,
   /\bsalary\b.*\d{4}/i,
+  /\d{4}.*\bsalary\b/i,
+  /\brental\s*income\b/i,
+  /\bsubstitute\s*payments?\b/i,
+  /\bescrow\s*(balance|disbursement)\b/i,
+  /\bhazard\s*insurance\s*paid\b/i,
   /\btax\s*(withheld|prepay|withholding|refund)\b/i,
   /\bfederal\s*tax\b/i,
   /\bstate\s*tax\s*(withheld|paid)\b/i,
