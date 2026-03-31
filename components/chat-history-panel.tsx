@@ -7,6 +7,7 @@ import { SkeletonList } from '@/components/skeleton';
 interface ChatSession {
   id: string;
   title: string;
+  summary: string | null;
   created_at: string;
   updated_at: string;
   message_count: number;
@@ -93,6 +94,9 @@ export default function ChatHistoryPanel({ currentSessionId, onSelectSession, on
           >
             <div className="flex-1 min-w-0 mr-2">
               <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{s.title}</p>
+              {s.summary && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{s.summary}</p>
+              )}
               <p className="text-xs text-gray-400 mt-0.5">
                 {s.message_count} message{s.message_count !== 1 ? 's' : ''} · {timeAgo(s.updated_at)}
               </p>

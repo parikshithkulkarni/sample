@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Send, Clock, TrendingUp, AlertTriangle, Building2, DollarSign, Calculator, FileText, MessageCircle, RefreshCw } from 'lucide-react';
+import { Send, Clock, TrendingUp, AlertTriangle, Building2, DollarSign, Calculator, FileText, MessageCircle, RefreshCw, Sparkles, Loader2 } from 'lucide-react';
 import NetWorthChart from '@/components/net-worth-chart';
 import { SkeletonCard } from '@/components/skeleton';
 import { fmt, daysUntil } from '@/lib/utils';
@@ -39,6 +39,8 @@ export default function DashboardCards() {
   const [quickQ, setQuickQ] = useState('');
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [insights, setInsights] = useState<{ title: string; description: string; priority: string; category: string }[]>([]);
+  const [insightsLoading, setInsightsLoading] = useState(false);
 
   async function loadData() {
     await Promise.all([
@@ -50,7 +52,20 @@ export default function DashboardCards() {
 
   useEffect(() => {
     loadData().finally(() => setLoading(false));
+    fetchInsights();
   }, []);
+
+  async function fetchInsights() {
+    setInsightsLoading(true);
+    try {
+      const res = await fetch('/api/insights');
+      if (res.ok) {
+        const data = await res.json() as { insights: typeof insights };
+        setInsights(data.insights ?? []);
+      }
+    } catch { /* non-fatal */ }
+    finally { setInsightsLoading(false); }
+  }
 
   async function syncFromDocs() {
     setSyncing(true);
@@ -146,6 +161,46 @@ export default function DashboardCards() {
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {/* AI Insights */}
+          {(insightsLoading || insights.length > 0) && (
+            <div
+              className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800 animate-staggerIn"
+              style={{ animationDelay: '25ms' }}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 text-xs">
+                  <Sparkles size={14} className="text-amber-500" /> AI Insights
+                </div>
+                <button
+                  onClick={fetchInsights}
+                  disabled={insightsLoading}
+                  className="text-xs text-sky-500 hover:text-sky-700 disabled:opacity-50"
+                >
+                  {insightsLoading ? <Loader2 size={12} className="animate-spin" /> : 'Refresh'}
+                </button>
+              </div>
+              {insightsLoading && insights.length === 0 ? (
+                <p className="text-xs text-gray-400 animate-pulse">Analyzing your finances...</p>
+              ) : (
+                <ul className="space-y-2">
+                  {insights.slice(0, 4).map((insight, i) => (
+                    <li key={i} className="text-sm text-gray-700 dark:text-gray-300 flex gap-2">
+                      <span className={`shrink-0 text-xs mt-0.5 ${
+                        insight.priority === 'high' ? 'text-red-500' : insight.priority === 'medium' ? 'text-amber-500' : 'text-sky-500'
+                      }`}>
+                        {insight.priority === 'high' ? '!' : '•'}
+                      </span>
+                      <div>
+                        <span className="font-medium">{insight.title}</span>
+                        <span className="text-gray-500 dark:text-gray-400"> — {insight.description}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
 

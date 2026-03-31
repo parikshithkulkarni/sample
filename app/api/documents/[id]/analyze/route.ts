@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
 import Anthropic from '@anthropic-ai/sdk';
+import { ANALYSIS_PROMPT } from '@/lib/prompts';
 
 export const maxDuration = 60;
 
@@ -29,30 +30,42 @@ export async function POST(
   try {
     const msg = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 512,
+      max_tokens: 2048,
       messages: [
         {
           role: 'user',
-          content: `Analyze this document and return ONLY valid JSON (no markdown, no explanation):
-{"summary":"one sentence summary","insights":["insight 1","insight 2","insight 3"]}
-
-Document: ${(docRow as { name: string }).name}
----
-${fullText}`,
+          content: `${ANALYSIS_PROMPT}\n\nDocument: ${(docRow as { name: string }).name}\n---\n${fullText}`,
         },
       ],
     });
 
     const raw = (msg.content[0] as { type: string; text: string }).text.trim();
-    const parsed = JSON.parse(raw) as { summary: string; insights: string[] };
+    // Handle potential markdown fencing
+    const jsonStr = raw.replace(/^```json\s*\n?/, '').replace(/\n?```\s*$/, '');
+    const parsed = JSON.parse(jsonStr) as {
+      summary: string;
+      doc_type?: string;
+      key_metrics?: { label: string; value: number; format?: string }[];
+      insights: string[];
+      action_items?: string[];
+      risk_flags?: string[];
+    };
 
     const [updated] = await sql`
       UPDATE documents
-      SET summary = ${parsed.summary}, insights = ${parsed.insights}
+      SET summary = ${parsed.summary},
+          insights = ${parsed.insights ?? []},
+          doc_type = ${parsed.doc_type ?? null}
       WHERE id = ${id}
-      RETURNING id, name, tags, summary, insights, added_at
+      RETURNING id, name, tags, summary, insights, doc_type, added_at
     `;
-    return Response.json(updated);
+
+    return Response.json({
+      ...updated,
+      key_metrics: parsed.key_metrics ?? [],
+      action_items: parsed.action_items ?? [],
+      risk_flags: parsed.risk_flags ?? [],
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return Response.json({ error: msg }, { status: 500 });

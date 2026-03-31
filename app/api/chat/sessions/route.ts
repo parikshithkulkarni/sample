@@ -23,6 +23,7 @@ export async function GET(req: Request) {
     SELECT
       s.id,
       s.title,
+      s.summary,
       s.created_at,
       s.updated_at,
       COUNT(m.id)::int AS message_count
