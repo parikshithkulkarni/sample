@@ -103,8 +103,8 @@ test.describe('Chat Page', () => {
 
     await expect(page.locator('[role="listbox"]')).toBeVisible({ timeout: 5000 });
 
-    // Select first document via mousedown (more reliable than Enter)
-    await page.locator('[role="option"]').first().click();
+    // Select first document via dispatchEvent mousedown (component uses onMouseDown)
+    await page.locator('[role="option"]').first().dispatchEvent('mousedown');
 
     // Wait for picker to close
     await expect(page.locator('[role="listbox"]')).not.toBeVisible({ timeout: 5000 });
