@@ -140,10 +140,28 @@ export async function extractAndInsert(documentId: string): Promise<{ accounts: 
     const insertedAccounts: string[] = [];
     const insertedProperties: string[] = [];
 
+    // Categories that are income/tax records, not real balance-sheet accounts
+    const INCOME_CATEGORIES = new Set([
+      'employment_income', 'self_employment_income', 'partnership_income',
+      'interest_income', 'dividend_income', 'capital_gains', 'rental_income',
+      'tax_prepayment', 'retirement_distribution', 'capital_gains_short_term',
+      'capital_gains_long_term', 'other_income', 'wages', 'salary', 'dividends',
+      'escrow', 'escrow_disbursement',
+    ]);
+    // Name patterns that indicate income/tax, not a real account
+    const INCOME_NAME_PATTERNS = [
+      /\bwages?\b/i, /\bsalary\b/i, /\brental\s*income\b/i, /\bdividends?\b/i,
+      /\bsubstitute\s*payments?\b/i, /\bescrow\s*(balance|disbursement)\b/i,
+      /\bhazard\s*insurance\s*paid\b/i, /\binterest\s*(income|earned)\b/i,
+      /\bcapital\s*gains?\b/i, /\b(gross|net)\s*(pay|income|wages)\b/i,
+    ];
+
     const allAccounts = await sql`SELECT id, name, balance FROM accounts` as { id: string; name: string; balance: number }[];
     for (const acct of parsed.accounts ?? []) {
       if (!acct.name || !acct.type || !acct.category) continue;
       const category = acct.category.toLowerCase().replace(/[^a-z0-9_]/g, '_') || 'other';
+      // Skip income/tax items — they should be in tax_data, not accounts
+      if (INCOME_CATEGORIES.has(category) || INCOME_NAME_PATTERNS.some(p => p.test(acct.name))) continue;
       const balance = parseNum(acct.balance) ?? 0;
       // Upsert: update if match found, insert if new
       const match = allAccounts.find(a => accountNamesMatch(a.name, acct.name));
