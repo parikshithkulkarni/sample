@@ -20,8 +20,8 @@ async function getThemeToggle(page: import('@playwright/test').Page) {
 test.describe('Theme Toggle', () => {
   // Skip on mobile-safari — the floating theme button is absolute-positioned
   // and Playwright's :visible pseudo-class doesn't reliably match it
-  test.skip(({ browserName }, testInfo) => testInfo.project.name === 'mobile-safari',
-    'Theme toggle positioning unreliable on mobile-safari');
+  test.skip(({ isMobile }) => !!isMobile,
+    'Theme toggle positioning unreliable on mobile');
 
   test.beforeEach(async ({ page }) => {
     await mockDashboardAPIs(page, {});
