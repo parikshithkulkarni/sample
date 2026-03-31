@@ -51,8 +51,24 @@ export async function syncTaxReturnsFromAccounts(forceYear?: number): Promise<vo
   if (yearsSet.size === 0) yearsSet.add(new Date().getFullYear() - 1);
 
   for (const taxYear of yearsSet) {
-    const usUpdates: Record<string, number> = {};
-    const indiaUpdates: Record<string, number> = {};
+    // Start all sync-managed fields at 0 so stale values from old extraction are cleared.
+    // Only fields that have matching accounts/rentals will get non-zero values.
+    const usUpdates: Record<string, number> = {
+      'income.wages': 0, 'income.interest': 0, 'income.ordinary_dividends': 0,
+      'income.qualified_dividends': 0, 'income.business_income': 0,
+      'income.rental_income': 0, 'income.ira_distributions': 0,
+      'adjustments.k401_contributions': 0, 'adjustments.hsa_deduction': 0,
+      'adjustments.student_loan_interest': 0,
+      'deductions.mortgage_interest': 0, 'deductions.salt': 0,
+      'payments.federal_withheld': 0, 'payments.state_withheld': 0,
+      'iso_amt.amt_adjustment': 0,
+    };
+    const indiaUpdates: Record<string, number> = {
+      'income.salary': 0, 'income.interest_income': 0,
+      'income.house_property_rent': 0, 'income.home_loan_interest': 0,
+      'income.business_income': 0,
+      'taxes_paid.tds_salary': 0,
+    };
     const usSources: TaxSources = {};
     const indiaSources: TaxSources = {};
 
