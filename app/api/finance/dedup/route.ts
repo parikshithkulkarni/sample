@@ -14,13 +14,29 @@ export async function POST() {
     id: string; name: string; type: string; category: string; balance: number; notes: string | null;
   }[];
 
-  // Group by normalized name
+  // Group by normalized name with prefix/substring matching
+  const dedupEntries = accounts
+    .map(a => ({ acct: a, key: normalizeAccountName(a.name) }))
+    .filter(e => e.key.length > 0);
   const groups = new Map<string, typeof accounts>();
-  for (const acct of accounts) {
-    const key = normalizeAccountName(acct.name);
-    const group = groups.get(key) ?? [];
-    group.push(acct);
-    groups.set(key, group);
+  for (const { acct, key } of dedupEntries) {
+    let matched = false;
+    for (const [existingKey, group] of groups) {
+      if (existingKey === key || (key.length >= 8 && existingKey.length >= 8 &&
+          (existingKey.startsWith(key) || key.startsWith(existingKey) ||
+           existingKey.includes(key) || key.includes(existingKey)))) {
+        group.push(acct);
+        if (key.length < existingKey.length) {
+          groups.set(key, group);
+          groups.delete(existingKey);
+        }
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      groups.set(key, [acct]);
+    }
   }
 
   let mergedCount = 0;

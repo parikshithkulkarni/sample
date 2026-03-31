@@ -131,13 +131,31 @@ export async function POST() {
 
   // Step 3: Deduplicate remaining real accounts with aggressive normalization
   const remaining = allAccounts.filter(a => !junkIds.includes(a.id));
+  // Group accounts where one normalized name is a prefix/substring of another
+  const dedupEntries = remaining
+    .map(a => ({ acct: a, key: normalizeForDedup(a.name) }))
+    .filter(e => e.key.length > 0);
   const groups = new Map<string, typeof remaining>();
-  for (const acct of remaining) {
-    const key = normalizeForDedup(acct.name);
-    if (!key) continue; // skip if name normalizes to empty
-    const group = groups.get(key) ?? [];
-    group.push(acct);
-    groups.set(key, group);
+  for (const { acct, key } of dedupEntries) {
+    // Check if this key matches an existing group key (prefix/substring match)
+    let matched = false;
+    for (const [existingKey, group] of groups) {
+      if (existingKey === key || (key.length >= 8 && existingKey.length >= 8 &&
+          (existingKey.startsWith(key) || key.startsWith(existingKey) ||
+           existingKey.includes(key) || key.includes(existingKey)))) {
+        group.push(acct);
+        // Use the shorter key as canonical (it's the common prefix)
+        if (key.length < existingKey.length) {
+          groups.set(key, group);
+          groups.delete(existingKey);
+        }
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      groups.set(key, [acct]);
+    }
   }
 
   let mergedCount = 0;
