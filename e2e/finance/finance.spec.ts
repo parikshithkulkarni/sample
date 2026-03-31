@@ -14,7 +14,7 @@ test.describe('Finance Page', () => {
   test('net worth card displays correctly', async ({ page }) => {
     await mockFinanceAPI(page, TEST_ACCOUNTS);
     await page.goto('/finance');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await expect(page.getByText('Net Worth')).toBeVisible();
     await expect(page.getByText(/Assets/)).toBeVisible();
@@ -67,7 +67,7 @@ test.describe('Finance Page', () => {
   test('inline balance editing', async ({ page }) => {
     await mockFinanceAPI(page, TEST_ACCOUNTS);
     await page.goto('/finance');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Fidelity 401k is in the "Retirement" group. Ensure group is expanded by checking visibility.
     await expect(page.getByText('Fidelity 401k')).toBeVisible();
@@ -77,7 +77,7 @@ test.describe('Finance Page', () => {
     const accountLi = page.locator('li').filter({ hasText: 'Fidelity 401k' });
     // In non-editing mode, the AccountRow has two buttons: pencil (edit), then trash (delete).
     // Pencil button has hover:text-sky-500 class.
-    const pencilBtn = accountLi.locator('button.hover\\:text-sky-500');
+    const pencilBtn = accountLi.locator('button').nth(0);
     await pencilBtn.click();
 
     // Should show input field (type="number")
@@ -86,24 +86,24 @@ test.describe('Finance Page', () => {
     await balanceInput.fill('130000');
 
     // Click the check button to save — in editing mode, buttons are: [save (check), cancel (X)].
-    // The save button has text-emerald-500 class.
-    const saveBtn = accountLi.locator('button.text-emerald-500');
+    // The save button is the first button in edit mode.
+    const saveBtn = accountLi.locator('button').nth(0);
     await saveBtn.click();
   });
 
   test('cancel inline edit', async ({ page }) => {
     await mockFinanceAPI(page, TEST_ACCOUNTS);
     await page.goto('/finance');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Start editing an account
     await expect(page.getByText('Fidelity 401k')).toBeVisible();
     const accountLi = page.locator('li').filter({ hasText: 'Fidelity 401k' });
-    const pencilBtn = accountLi.locator('button.hover\\:text-sky-500');
+    const pencilBtn = accountLi.locator('button').nth(0);
     await pencilBtn.click();
 
     // Cancel the edit - click the X button. In editing mode, buttons are: [save, cancel].
-    const cancelBtn = accountLi.locator('button.text-gray-400');
+    const cancelBtn = accountLi.locator('button').nth(1);
     await cancelBtn.click();
 
     // Input should no longer be visible
@@ -113,7 +113,7 @@ test.describe('Finance Page', () => {
   test('delete account', async ({ page }) => {
     await mockFinanceAPI(page, TEST_ACCOUNTS);
     await page.goto('/finance');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Count accounts before
     const fidelityText = page.getByText('Fidelity 401k');
@@ -122,9 +122,9 @@ test.describe('Finance Page', () => {
     // Handle the confirm dialog that remove() triggers
     page.on('dialog', (dialog) => dialog.accept());
 
-    // Click delete (trash) button — it has hover:text-red-400 class
+    // Click delete (trash) button — it is the second button in the account row
     const accountLi = page.locator('li').filter({ hasText: 'Fidelity 401k' });
-    const trashBtn = accountLi.locator('button.hover\\:text-red-400');
+    const trashBtn = accountLi.locator('button').nth(1);
     await trashBtn.click();
 
     // Account should be removed (optimistic)
@@ -134,7 +134,7 @@ test.describe('Finance Page', () => {
   test('semantic group collapsing', async ({ page }) => {
     await mockFinanceAPI(page, TEST_ACCOUNTS);
     await page.goto('/finance');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Click a group header to collapse
     const retirementGroup = page.getByText('Retirement');
@@ -180,7 +180,7 @@ test.describe('Finance Page', () => {
   test('Ask Claude button navigates to chat', async ({ page }) => {
     await mockFinanceAPI(page, TEST_ACCOUNTS);
     await page.goto('/finance');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await page.getByText('Ask Claude about my finances').click();
     await expect(page).toHaveURL(/\/chat\?q=/);
@@ -202,12 +202,12 @@ test.describe('Finance Page', () => {
   test('Bug: balance edit with non-numeric input', async ({ page }) => {
     await mockFinanceAPI(page, TEST_ACCOUNTS);
     await page.goto('/finance');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Start editing the account balance
     await expect(page.getByText('Fidelity 401k')).toBeVisible();
     const accountLi = page.locator('li').filter({ hasText: 'Fidelity 401k' });
-    const pencilBtn = accountLi.locator('button.hover\\:text-sky-500');
+    const pencilBtn = accountLi.locator('button').nth(0);
     await pencilBtn.click();
 
     // The input is type="number", so non-numeric text cannot be entered.
@@ -223,7 +223,7 @@ test.describe('Finance Page', () => {
     await expect(balanceInput).toHaveValue('');
 
     // Click save — parseFloat('') returns NaN, UI should handle gracefully (not crash)
-    const saveBtn = accountLi.locator('button.text-emerald-500');
+    const saveBtn = accountLi.locator('button').nth(0);
     await saveBtn.click();
 
     // Page should remain stable
@@ -246,12 +246,12 @@ test.describe('Finance Page', () => {
       }
     });
     await page.goto('/finance');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Start editing
     await expect(page.getByText('Fidelity 401k')).toBeVisible();
     const accountLi = page.locator('li').filter({ hasText: 'Fidelity 401k' });
-    const pencilBtn = accountLi.locator('button.hover\\:text-sky-500');
+    const pencilBtn = accountLi.locator('button').nth(0);
     await pencilBtn.click();
 
     const balanceInput = accountLi.locator('input[type="number"]');
@@ -259,7 +259,7 @@ test.describe('Finance Page', () => {
     await balanceInput.fill('999999');
 
     // Click save
-    const saveBtn = accountLi.locator('button.text-emerald-500');
+    const saveBtn = accountLi.locator('button').nth(0);
     await saveBtn.click();
 
     // Should show error toast after the PATCH fails (network error triggers catch block)

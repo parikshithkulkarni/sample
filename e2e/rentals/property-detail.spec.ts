@@ -29,10 +29,11 @@ test.describe('Property Detail Page', () => {
 
   test('edit property form', async ({ page }) => {
     await page.goto('/rentals/p1');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
-    // The edit button has hover:text-sky-500 class.
-    const editBtn = page.locator('button.hover\\:text-sky-500').first();
+    // The edit button is the first button in the property header action group
+    const propertyHeader = page.locator('.rounded-2xl').filter({ hasText: '123 Main St' });
+    const editBtn = propertyHeader.locator('button').first();
     if (await editBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await editBtn.click();
 
@@ -49,10 +50,11 @@ test.describe('Property Detail Page', () => {
     page.on('dialog', (d) => d.accept());
 
     await page.goto('/rentals/p1');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
-    // The delete button contains a Trash2 icon. It has hover:text-red-400 class.
-    const deleteBtn = page.locator('button.hover\\:text-red-400').first();
+    // The delete button is the second button in the property header action group
+    const propertyHeader = page.locator('.rounded-2xl').filter({ hasText: '123 Main St' });
+    const deleteBtn = propertyHeader.locator('button').nth(1);
     if (await deleteBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await deleteBtn.click();
       await expect(page).toHaveURL(/\/rentals$/, { timeout: 5000 });
@@ -61,7 +63,7 @@ test.describe('Property Detail Page', () => {
 
   test('annual KPIs display', async ({ page }) => {
     await page.goto('/rentals/p1');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Should show KPI labels
     await expect(page.getByText(/annual rent/i)).toBeVisible({ timeout: 10000 });

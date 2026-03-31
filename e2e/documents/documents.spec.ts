@@ -47,7 +47,7 @@ test.describe('Documents Page', () => {
     await page.goto('/documents');
 
     const docItem = page.getByText('W2-2024.pdf').locator('..').locator('..');
-    const deleteBtn = docItem.locator('button.hover\\:text-red-400').first();
+    const deleteBtn = docItem.locator('button').last();
     if (await deleteBtn.isVisible()) {
       await deleteBtn.click();
     }
@@ -146,8 +146,9 @@ test.describe('Documents Page', () => {
     await page.goto('/documents');
 
     // W2 doc has insights - look for expand button
-    // The expand/collapse button has text-sky-500 hover:text-sky-700 class
-    const insightToggle = page.locator('button.text-sky-500').first();
+    // The expand/collapse button is the second button (between Extract and trash) in the W2 doc row
+    const docItem = page.getByText('W2-2024.pdf').locator('..').locator('..');
+    const insightToggle = docItem.locator('button').nth(1);
     if (await insightToggle.isVisible()) {
       await insightToggle.click();
       await expect(page.getByText('Total wages: $200,000')).toBeVisible();

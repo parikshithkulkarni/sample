@@ -28,7 +28,7 @@ test.describe('Rentals Page', () => {
   test('property cards display stats', async ({ page }) => {
     await mockRentalsAPI(page, TEST_PROPERTIES, TEST_RENTAL_RECORDS);
     await page.goto('/rentals');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await expect(page.getByText('123 Main St, San Francisco, CA')).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('456 Oak Ave, Austin, TX')).toBeVisible();
@@ -37,7 +37,7 @@ test.describe('Rentals Page', () => {
   test('property card click navigates to detail', async ({ page }) => {
     await mockRentalsAPI(page, TEST_PROPERTIES, TEST_RENTAL_RECORDS);
     await page.goto('/rentals');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // The property card is a <div> with onClick, containing the address text
     await page.getByText('123 Main St, San Francisco, CA').click();
@@ -47,7 +47,7 @@ test.describe('Rentals Page', () => {
   test('delete property', async ({ page }) => {
     await mockRentalsAPI(page, TEST_PROPERTIES, TEST_RENTAL_RECORDS);
     await page.goto('/rentals');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const propText = page.getByText('456 Oak Ave, Austin, TX');
     await expect(propText).toBeVisible({ timeout: 10000 });
@@ -100,7 +100,7 @@ test.describe('Rentals Page', () => {
   test('portfolio summary cards', async ({ page }) => {
     await mockRentalsAPI(page, TEST_PROPERTIES, TEST_RENTAL_RECORDS);
     await page.goto('/rentals');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Summary cards should show aggregated stats
     await expect(page.getByText(/properties/i)).toBeVisible();
@@ -109,7 +109,7 @@ test.describe('Rentals Page', () => {
   test('Ask Claude button navigates to chat', async ({ page }) => {
     await mockRentalsAPI(page, TEST_PROPERTIES, TEST_RENTAL_RECORDS);
     await page.goto('/rentals');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const askBtn = page.getByRole('button', { name: /ask claude/i });
     if (await askBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -123,7 +123,7 @@ test.describe('Rentals Page', () => {
     // The component calls dedup then refetches /api/rentals — both are handled by mockRentalsAPI.
     await mockRentalsAPI(page, TEST_PROPERTIES, TEST_RENTAL_RECORDS);
     await page.goto('/rentals');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Properties should be visible without flashing
     await expect(page.getByText('123 Main St, San Francisco, CA')).toBeVisible({ timeout: 10000 });

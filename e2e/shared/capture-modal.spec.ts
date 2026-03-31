@@ -43,9 +43,8 @@ test.describe('Capture Modal', () => {
     await page.locator('button[aria-label="Quick capture"]').click();
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
-    // Click X button
-    // The close button has text-gray-400 hover:text-gray-600 classes
-    await page.locator('[role="dialog"] button.hover\\:text-gray-600').click();
+    // Click X button — the close button is the first button inside the dialog
+    await page.locator('[role="dialog"]').locator('button').first().click();
 
     await expect(page.locator('[role="dialog"]')).not.toBeVisible();
   });

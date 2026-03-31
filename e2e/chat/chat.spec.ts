@@ -155,8 +155,8 @@ test.describe('Chat Page', () => {
     await expect(page.getByText('Chat History')).toBeVisible();
     await expect(page.getByText('Tax planning discussion')).toBeVisible();
 
-    // Close history — the close button has text-gray-400 hover:text-gray-600 classes
-    await page.locator('button.hover\\:text-gray-600').first().click();
+    // Close history — the close button is the last button in the history panel header
+    await page.getByText('Chat History').locator('..').locator('..').locator('button').last().click();
     await expect(page.getByText('Chat History')).not.toBeVisible();
   });
 

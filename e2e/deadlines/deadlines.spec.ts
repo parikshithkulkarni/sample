@@ -83,9 +83,9 @@ test.describe('Deadlines Page', () => {
     const deadlineText = page.getByText('H1B Visa Renewal');
     await expect(deadlineText).toBeVisible();
 
-    // Click the trash button — it has hover:text-red-400 class
+    // Click the trash button — it is the last button in the deadline item
     const deadlineLi = page.locator('li').filter({ hasText: 'H1B Visa Renewal' });
-    const trashBtn = deadlineLi.locator('button.hover\\:text-red-400');
+    const trashBtn = deadlineLi.locator('button').last();
     await trashBtn.click();
 
     // Should be removed

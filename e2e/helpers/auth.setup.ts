@@ -19,7 +19,7 @@ setup('authenticate', async ({ page, context }) => {
   });
 
   // Navigate to login and attempt real auth
-  await page.goto('/login', { waitUntil: 'networkidle' });
+  await page.goto('/login', { waitUntil: 'domcontentloaded' });
 
   // Take a screenshot to debug what the page looks like
   const username = process.env.ADMIN_USERNAME ?? 'admin';

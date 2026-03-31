@@ -8,7 +8,7 @@ test.describe('Login Page', () => {
   test('renders login form when admin exists', async ({ page }) => {
     await mockSetupAPI(page, { adminExists: true });
     await page.goto('/login');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await expect(page.getByText('Second Brain')).toBeVisible({ timeout: 15000 });
     await expect(page.getByText('Your private AI dashboard')).toBeVisible();
@@ -27,7 +27,7 @@ test.describe('Login Page', () => {
   test('show/hide password toggle', async ({ page }) => {
     await mockSetupAPI(page, { adminExists: true });
     await page.goto('/login');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const passwordInput = page.getByLabel('Password');
     await passwordInput.waitFor({ timeout: 15000 });
@@ -84,7 +84,7 @@ test.describe('Login Page', () => {
       await route.continue();
     });
     await page.goto('/login');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await page.getByLabel('Username').waitFor({ timeout: 15000 });
     await page.getByLabel('Username').fill('wronguser');
@@ -97,7 +97,7 @@ test.describe('Login Page', () => {
   test('shows setup done banner from query param', async ({ page }) => {
     await mockSetupAPI(page, { adminExists: true });
     await page.goto('/login?setup=done');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await expect(page.getByText('Account created! Sign in below.')).toBeVisible({ timeout: 15000 });
   });
@@ -105,7 +105,7 @@ test.describe('Login Page', () => {
   test('sign-in button disabled when fields empty', async ({ page }) => {
     await mockSetupAPI(page, { adminExists: true });
     await page.goto('/login');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const signInBtn = page.getByRole('button', { name: /sign in/i });
     await signInBtn.waitFor({ timeout: 15000 });
@@ -128,7 +128,7 @@ test.describe('Login Page', () => {
       await route.continue();
     });
     await page.goto('/login');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await page.getByLabel('Username').waitFor({ timeout: 15000 });
     await page.getByLabel('Username').fill('admin');
@@ -141,7 +141,7 @@ test.describe('Login Page', () => {
   test('Set up your account link', async ({ page }) => {
     await mockSetupAPI(page, { adminExists: true });
     await page.goto('/login');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const setupLink = page.getByRole('link', { name: /set up your account/i });
     await setupLink.waitFor({ timeout: 15000 });

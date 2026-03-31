@@ -9,7 +9,7 @@ test.describe('Setup Page', () => {
   test('displays environment status checklist', async ({ page }) => {
     await mockSetupAPI(page, TEST_SETUP_STATUS);
     await page.goto('/setup');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Verify checklist items render
     await expect(page.getByText('Anthropic API Key')).toBeVisible({ timeout: 15000 });
@@ -21,7 +21,7 @@ test.describe('Setup Page', () => {
   test('shows DB not connected warning with Check again button', async ({ page }) => {
     await mockSetupAPI(page, { ...TEST_SETUP_STATUS, dbReady: false, dbError: 'Connection refused' });
     await page.goto('/setup');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await expect(page.getByText('Database not connected')).toBeVisible({ timeout: 15000 });
     await expect(page.getByText('Check again')).toBeVisible();
@@ -30,7 +30,7 @@ test.describe('Setup Page', () => {
   test('shows account creation form when DB ready but no admin', async ({ page }) => {
     await mockSetupAPI(page, { ...TEST_SETUP_STATUS, dbReady: true, adminExists: false });
     await page.goto('/setup');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await expect(page.getByText('Create your account')).toBeVisible({ timeout: 15000 });
     await expect(page.getByLabel('Username')).toBeVisible();
@@ -41,7 +41,7 @@ test.describe('Setup Page', () => {
   test('password validation - too short', async ({ page }) => {
     await mockSetupAPI(page, { ...TEST_SETUP_STATUS, dbReady: true, adminExists: false });
     await page.goto('/setup');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await page.getByLabel('Username').waitFor({ timeout: 15000 });
     await page.getByLabel('Username').fill('testadmin');
@@ -55,7 +55,7 @@ test.describe('Setup Page', () => {
   test('password validation - mismatch', async ({ page }) => {
     await mockSetupAPI(page, { ...TEST_SETUP_STATUS, dbReady: true, adminExists: false });
     await page.goto('/setup');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await page.getByLabel('Username').waitFor({ timeout: 15000 });
     await page.getByLabel('Username').fill('testadmin');
@@ -69,7 +69,7 @@ test.describe('Setup Page', () => {
   test('successful account creation redirects to login', async ({ page }) => {
     await mockSetupAPI(page, { ...TEST_SETUP_STATUS, dbReady: true, adminExists: false });
     await page.goto('/setup');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await page.getByLabel('Username').waitFor({ timeout: 15000 });
     await page.getByLabel('Username').fill('testadmin');
@@ -83,7 +83,7 @@ test.describe('Setup Page', () => {
   test('shows ready state when admin exists', async ({ page }) => {
     await mockSetupAPI(page, { ...TEST_SETUP_STATUS, adminExists: true, ready: true });
     await page.goto('/setup');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await expect(page.getByText('Second Brain is ready')).toBeVisible({ timeout: 15000 });
     await expect(page.getByRole('link', { name: /open dashboard/i })).toBeVisible();
@@ -92,7 +92,7 @@ test.describe('Setup Page', () => {
   test('show/hide password toggle', async ({ page }) => {
     await mockSetupAPI(page, { ...TEST_SETUP_STATUS, dbReady: true, adminExists: false });
     await page.goto('/setup');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const passwordInput = page.getByLabel('Password');
     await passwordInput.waitFor({ timeout: 15000 });
@@ -108,7 +108,7 @@ test.describe('Setup Page', () => {
   test('form submit button disabled when fields empty', async ({ page }) => {
     await mockSetupAPI(page, { ...TEST_SETUP_STATUS, dbReady: true, adminExists: false });
     await page.goto('/setup');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const submitBtn = page.getByRole('button', { name: /create account/i });
     await submitBtn.waitFor({ timeout: 15000 });
@@ -125,7 +125,7 @@ test.describe('Setup Page', () => {
       }
     });
     await page.goto('/setup');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await page.getByLabel('Username').waitFor({ timeout: 15000 });
     await page.getByLabel('Username').fill('testadmin');
@@ -143,14 +143,14 @@ test.describe('Setup Page', () => {
       await route.fulfill({ json: TEST_SETUP_STATUS });
     });
     await page.goto('/setup');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const refreshBtn = page.getByRole('button', { name: /refresh status/i });
     await refreshBtn.waitFor({ timeout: 15000 });
 
     const initialCalls = callCount;
     await refreshBtn.click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     expect(callCount).toBeGreaterThan(initialCalls);
   });

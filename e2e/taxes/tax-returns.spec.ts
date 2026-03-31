@@ -99,12 +99,11 @@ test.describe('Tax Returns Page', () => {
   test('year navigation arrows', async ({ page }) => {
     await page.goto('/taxes');
 
-    // Look for arrow buttons
-    // Year navigation arrows are prev/next buttons with hover:bg-gray-100 class
-    // Left arrow is the first such button, right arrow is the second
-    const yearNav = page.locator('button.hover\\:bg-gray-100');
-    const leftArrow = yearNav.first();
-    const rightArrow = yearNav.last();
+    // Look for arrow buttons flanking the year list
+    // The year nav container is a flex row with: left arrow button, year list, right arrow button
+    const yearNavContainer = page.locator('.flex.items-center.gap-2.mb-2');
+    const leftArrow = yearNavContainer.locator('button').first();
+    const rightArrow = yearNavContainer.locator('button').last();
 
     if (await leftArrow.isVisible()) {
       await leftArrow.click();

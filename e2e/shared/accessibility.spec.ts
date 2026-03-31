@@ -22,7 +22,7 @@ test.describe('Accessibility', () => {
     // Test login form labels — need to mock /api/setup first
     await mockSetupAPI(page, { adminExists: true });
     await page.goto('/login');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Wait for form to render (adminExists check resolves)
     await expect(page.getByLabel('Username')).toBeVisible({ timeout: 15000 });
@@ -60,7 +60,7 @@ test.describe('Accessibility', () => {
   test('theme toggle buttons have aria-labels', async ({ page }) => {
     await mockDashboardAPIs(page, {});
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const toggles = page.locator('button[aria-label*="Switch to"]');
     await expect(toggles.first()).toBeAttached();
@@ -92,7 +92,7 @@ test.describe('Accessibility - Unauthenticated', () => {
       vars: [], dbReady: true, dbError: '', allRequired: true, adminExists: false, ready: false,
     });
     await page.goto('/setup');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await expect(page.getByLabel('Username')).toBeVisible({ timeout: 15000 });
     await expect(page.getByLabel('Password')).toBeVisible();
