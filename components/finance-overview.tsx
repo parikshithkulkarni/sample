@@ -210,7 +210,7 @@ export default function FinanceOverview() {
   }, []);
 
   // Exclude income/tax records from net worth — they aren't real account balances
-  const realAccounts = accounts.filter((a) => !INCOME_TAX_CATEGORIES.has(a.category.toLowerCase()));
+  const realAccounts = accounts.filter((a) => getSemanticGroup(a) !== 'tax_records');
   const assets = realAccounts.filter((a) => a.type === 'asset');
   const liabilities = realAccounts.filter((a) => a.type === 'liability');
   const totalAssets = assets.reduce((s, a) => s + Number(a.balance), 0);
