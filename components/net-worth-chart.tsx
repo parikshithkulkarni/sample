@@ -34,7 +34,8 @@ function buildPath(values: number[], width: number, height: number, pad: number)
 }
 
 function formatDate(d: string) {
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const dateStr = d.includes('T') ? d : d + 'T00:00:00';
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 export default function NetWorthChart({ compact = false }: Props) {
