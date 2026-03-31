@@ -3,8 +3,9 @@ import { authOptions } from '@/lib/auth';
 import { sql } from '@/lib/db';
 import { US_DEFAULT, INDIA_DEFAULT } from '@/lib/tax-returns';
 import { taxReturnQuerySchema, taxReturnSyncSchema, parseBody, parseQuery } from '@/lib/validators';
+import { logger } from '@/lib/logger';
 
-export const maxDuration = 30;
+export const maxDuration = 300; // 5 minutes — re-extraction can be slow
 
 // Deep-merge defaults into stored data so missing nested fields are always present
 function mergeWithDefaults(stored: Record<string, unknown>, defaults: Record<string, unknown>): Record<string, unknown> {
@@ -65,6 +66,25 @@ export async function POST(req: Request) {
   const { year, country } = parsed;
   const defaults = country === 'US' ? US_DEFAULT : INDIA_DEFAULT;
 
+  // Step 1: Reset tax return to defaults so stale/inflated values are cleared
+  const resetDefaults = country === 'US' ? US_DEFAULT : INDIA_DEFAULT;
+  const existingRows = await sql`SELECT id FROM tax_returns WHERE tax_year = ${year} AND country = ${country}` as { id: string }[];
+  if (existingRows.length > 0) {
+    await sql`UPDATE tax_returns SET data = ${JSON.stringify(resetDefaults)}::jsonb, sources = '{}'::jsonb, updated_at = NOW() WHERE id = ${existingRows[0].id}`;
+  }
+
+  // Step 2: Re-extract all documents (writes correct tax_data with SET semantics + source tracking)
+  try {
+    const { extractAndInsert } = await import('@/lib/extract');
+    const docs = await sql`SELECT id FROM documents ORDER BY added_at ASC` as { id: string }[];
+    for (const doc of docs) {
+      await extractAndInsert(doc.id).catch((err: unknown) => logger.error('Tax sync extraction failed', err));
+    }
+  } catch (err) {
+    logger.error('Document re-extraction failed during tax sync', err);
+  }
+
+  // Step 3: Sync from accounts and rental records
   const { syncTaxReturnsFromAccounts } = await import('@/lib/tax-returns');
   await syncTaxReturnsFromAccounts(year);
 
