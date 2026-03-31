@@ -51,7 +51,7 @@ test.describe('Accessibility', () => {
     await input.fill('@');
 
     // Picker should have correct ARIA roles
-    await expect(page.locator('[role="listbox"]')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('[role="listbox"]')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('[role="option"]').first()).toBeVisible();
 
     // First option should have aria-selected

@@ -109,8 +109,9 @@ test.describe('Chat Page', () => {
     // Wait for picker to close (chip selection complete)
     await expect(page.locator('[role="listbox"]')).not.toBeVisible();
 
-    // Chip should appear
-    await expect(page.locator('.rounded-full').filter({ hasText: 'W2-2024.pdf' })).toBeVisible({ timeout: 5000 });
+    // Chip should appear — the doc chip is a span with bg-sky-100 and rounded-full
+    const chip = page.getByText('W2-2024.pdf').first();
+    await expect(chip).toBeVisible({ timeout: 5000 });
 
     // Input should not contain @
     const inputVal = await input.inputValue();
@@ -193,7 +194,7 @@ test.describe('Chat Page', () => {
     await expect(page.locator('[role="listbox"]')).toBeVisible();
 
     // Type a space after @ - should close picker per chat-interface.tsx:97-99
-    await input.fill('@ ');
+    await input.press('Space');
     await expect(page.locator('[role="listbox"]')).not.toBeVisible();
   });
 

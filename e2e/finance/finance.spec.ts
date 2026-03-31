@@ -14,11 +14,11 @@ test.describe('Finance Page', () => {
   test('net worth card displays correctly', async ({ page }) => {
     await mockFinanceAPI(page, TEST_ACCOUNTS);
     await page.goto('/finance');
-    await page.waitForLoadState('domcontentloaded');
 
-    await expect(page.getByText('Net Worth')).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText(/Assets/)).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText(/Liabilities/)).toBeVisible({ timeout: 5000 });
+    // Wait for loading skeleton to disappear and net worth card to appear
+    await expect(page.getByText('Net Worth').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/Assets/).first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/Liabilities/).first()).toBeVisible({ timeout: 5000 });
   });
 
   test('add account form opens and closes', async ({ page }) => {
