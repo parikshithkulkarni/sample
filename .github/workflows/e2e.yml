@@ -38,7 +38,9 @@ jobs:
       - name: Run Playwright tests
         id: e2e
         continue-on-error: true
-        run: npx playwright test --reporter=list 2>&1 | tee /tmp/playwright-output.txt
+        run: |
+          npx playwright test --reporter=list 2>&1 | tee /tmp/playwright-output.txt
+          echo "EXIT_CODE=${PIPESTATUS[0]}" >> $GITHUB_ENV
         env:
           ANTHROPIC_API_KEY: stub
           DATABASE_URL: postgresql://stub:stub@stub/stub
@@ -100,5 +102,5 @@ jobs:
           retention-days: 14
 
       - name: Fail if tests failed
-        if: steps.e2e.outcome == 'failure'
+        if: env.EXIT_CODE != '0'
         run: exit 1
