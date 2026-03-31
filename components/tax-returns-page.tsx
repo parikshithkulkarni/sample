@@ -88,6 +88,9 @@ export default function TaxReturnsPage() {
     if (!taxReturn) return;
     setSyncing(true);
     try {
+      // Step 1: Re-extract all documents (writes correct tax_data to tax_returns)
+      await fetch('/api/documents/extract-all', { method: 'POST' }).catch(() => {});
+      // Step 2: Reset + sync from accounts/rental records
       const res = await fetch('/api/tax-returns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
