@@ -5,7 +5,8 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { searchChunks, formatContext } from '@/lib/retrieval';
 import { webSearch, formatWebResults } from '@/lib/web-search';
-import { SYSTEM_PROMPT } from '@/lib/prompts';
+import { SYSTEM_PROMPT, CHAT_SUMMARY_PROMPT, ANALYSIS_PROMPT } from '@/lib/prompts';
+import Anthropic from '@anthropic-ai/sdk';
 import { sql } from '@/lib/db';
 import { logger } from '@/lib/logger';
 
@@ -265,6 +266,93 @@ export async function POST(req: Request) {
             : 'No matching items found. Check the exact name or address.';
         },
       }),
+
+      update_tax_returns: tool({
+        description: 'Update tax return data for a specific year and country. Use when the user provides tax information like wages, withholdings, deductions, or other tax-related data.',
+        parameters: z.object({
+          year: z.number().describe('Tax year (e.g. 2024)'),
+          country: z.enum(['US', 'India']).describe('Country for the tax return'),
+          fields: z.array(z.object({
+            path: z.string().describe('Dotted field path, e.g. "income.wages", "payments.federal_withheld", "deductions.mortgage_interest"'),
+            amount: z.number().describe('Dollar/rupee amount'),
+            notes: z.string().optional().describe('Context for this value'),
+          })),
+        }),
+        execute: async ({ year, country, fields }) => {
+          try {
+            const { US_DEFAULT, INDIA_DEFAULT } = await import('@/lib/tax-data');
+            const defaults = country === 'US' ? US_DEFAULT : INDIA_DEFAULT;
+            const existing = await sql`SELECT id, data FROM tax_returns WHERE tax_year = ${year} AND country = ${country}` as { id: string; data: Record<string, unknown> }[];
+            const data = existing.length > 0
+              ? { ...defaults, ...existing[0].data } as Record<string, unknown>
+              : { ...defaults } as Record<string, unknown>;
+
+            const updated: string[] = [];
+            for (const f of fields) {
+              const keys = f.path.split('.');
+              let cur = data;
+              for (let i = 0; i < keys.length - 1; i++) {
+                if (typeof cur[keys[i]] !== 'object' || cur[keys[i]] === null) cur[keys[i]] = {};
+                cur = cur[keys[i]] as Record<string, unknown>;
+              }
+              cur[keys[keys.length - 1]] = f.amount;
+              updated.push(`${f.path} = ${f.amount}${f.notes ? ` (${f.notes})` : ''}`);
+            }
+
+            const dataJson = JSON.stringify(data);
+            if (existing.length > 0) {
+              await sql`UPDATE tax_returns SET data = ${dataJson}::jsonb, updated_at = NOW() WHERE id = ${existing[0].id}`;
+            } else {
+              await sql`INSERT INTO tax_returns (tax_year, country, data) VALUES (${year}, ${country}, ${dataJson}::jsonb)`;
+            }
+            return `✓ Updated ${country} ${year} tax return: ${updated.join(', ')}`;
+          } catch (err) {
+            return `Failed to update tax return: ${err instanceof Error ? err.message : String(err)}`;
+          }
+        },
+      }),
+
+      analyze_document: tool({
+        description: 'Analyze an uploaded document to extract key insights and financial data. Use when the user asks to analyze, review, or summarize a specific document.',
+        parameters: z.object({
+          document_name: z.string().describe('Name of the document to analyze (case-insensitive partial match)'),
+        }),
+        execute: async ({ document_name }) => {
+          try {
+            const docs = await sql`SELECT id, name FROM documents WHERE lower(name) LIKE ${`%${document_name.toLowerCase()}%`} LIMIT 1` as { id: string; name: string }[];
+            if (docs.length === 0) return `No document found matching "${document_name}". Check the exact name.`;
+
+            const doc = docs[0];
+            const chunks = await sql`SELECT content FROM chunks WHERE document_id = ${doc.id} ORDER BY chunk_index` as { content: string }[];
+            if (chunks.length === 0) return `Document "${doc.name}" has no content.`;
+
+            const fullText = chunks.map(c => c.content).join('\n');
+            const claude = new Anthropic();
+            const msg = await claude.messages.create({
+              model: 'claude-sonnet-4-6',
+              max_tokens: 2048,
+              messages: [{
+                role: 'user',
+                content: `${ANALYSIS_PROMPT}\n\nDocument: ${doc.name}\n---\n${fullText}`,
+              }],
+            });
+
+            const raw = (msg.content[0] as { type: string; text: string }).text.trim();
+            const jsonStr = raw.replace(/^```json\s*\n?/, '').replace(/\n?```\s*$/, '');
+            const parsed = JSON.parse(jsonStr) as { summary: string; insights: string[]; doc_type?: string; key_metrics?: unknown[]; action_items?: string[] };
+
+            // Update the document in DB
+            await sql`UPDATE documents SET summary = ${parsed.summary}, insights = ${parsed.insights ?? []}, doc_type = ${parsed.doc_type ?? null} WHERE id = ${doc.id}`;
+
+            const parts = [`📄 **${doc.name}**`, `**Summary:** ${parsed.summary}`];
+            if (parsed.insights?.length) parts.push(`**Insights:**\n${parsed.insights.map(i => `- ${i}`).join('\n')}`);
+            if (parsed.action_items?.length) parts.push(`**Action Items:**\n${parsed.action_items.map(i => `- ${i}`).join('\n')}`);
+            return parts.join('\n\n');
+          } catch (err) {
+            return `Failed to analyze document: ${err instanceof Error ? err.message : String(err)}`;
+          }
+        },
+      }),
     },
     maxSteps: 5, // MAX_TOOL_STEPS — prevents infinite tool-calling loops
   });
@@ -284,6 +372,30 @@ export async function POST(req: Request) {
               ${isNewSession ? sql`, title = ${(lastUser?.content ?? 'New Chat').slice(0, 60)}` : sql``}
           WHERE id = ${resolvedSessionId}
         `;
+
+        // Auto-summarize sessions with 6+ messages and no summary yet
+        const [sessionRow] = await sql`SELECT summary FROM chat_sessions WHERE id = ${resolvedSessionId}` as { summary: string | null }[];
+        if (!sessionRow?.summary) {
+          const [countRow] = await sql`SELECT count(*)::int as n FROM chat_messages WHERE session_id = ${resolvedSessionId}` as { n: number }[];
+          if (countRow.n >= 6) {
+            const recentMsgs = await sql`
+              SELECT role, content FROM chat_messages
+              WHERE session_id = ${resolvedSessionId}
+              ORDER BY created_at DESC LIMIT 10
+            ` as { role: string; content: string }[];
+            const convoText = recentMsgs.reverse().map(m => `${m.role}: ${m.content.slice(0, 200)}`).join('\n');
+            try {
+              const claude = new Anthropic();
+              const summaryMsg = await claude.messages.create({
+                model: 'claude-sonnet-4-6',
+                max_tokens: 128,
+                messages: [{ role: 'user', content: `${CHAT_SUMMARY_PROMPT}\n\n${convoText}` }],
+              });
+              const summary = (summaryMsg.content[0] as { type: string; text: string }).text.trim();
+              await sql`UPDATE chat_sessions SET summary = ${summary} WHERE id = ${resolvedSessionId}`;
+            } catch (err) { logger.error('Failed to generate chat summary', err); }
+          }
+        }
       } catch (err) { logger.error('Failed to save chat messages', err); }
     }).catch((err: unknown) => logger.error('Failed to process chat result', err));
   }
