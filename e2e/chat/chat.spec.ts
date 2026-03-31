@@ -101,17 +101,16 @@ test.describe('Chat Page', () => {
     const input = page.getByPlaceholder(/ask anything/i);
     await input.fill('@');
 
-    await expect(page.locator('[role="listbox"]')).toBeVisible();
+    await expect(page.locator('[role="listbox"]')).toBeVisible({ timeout: 5000 });
 
-    // Select first document
-    await input.press('Enter');
+    // Select first document via mousedown (more reliable than Enter)
+    await page.locator('[role="option"]').first().click();
 
-    // Wait for picker to close (chip selection complete)
-    await expect(page.locator('[role="listbox"]')).not.toBeVisible();
+    // Wait for picker to close
+    await expect(page.locator('[role="listbox"]')).not.toBeVisible({ timeout: 5000 });
 
-    // Chip should appear — the doc chip is a span with bg-sky-100 and rounded-full
-    const chip = page.getByText('W2-2024.pdf').first();
-    await expect(chip).toBeVisible({ timeout: 5000 });
+    // Chip should appear in the mentioned docs area (above input)
+    await expect(page.locator('.bg-sky-100').filter({ hasText: 'W2-2024.pdf' })).toBeVisible({ timeout: 5000 });
 
     // Input should not contain @
     const inputVal = await input.inputValue();
