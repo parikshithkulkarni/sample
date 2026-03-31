@@ -37,7 +37,9 @@ test.describe('Rentals Page', () => {
   test('property card click navigates to detail', async ({ page }) => {
     await mockRentalsAPI(page, TEST_PROPERTIES, TEST_RENTAL_RECORDS);
     await page.goto('/rentals');
+    await page.waitForLoadState('networkidle');
 
+    // The property card is a <div> with onClick, containing the address text
     await page.getByText('123 Main St, San Francisco, CA').click();
     await expect(page).toHaveURL(/\/rentals\/p1/);
   });
@@ -45,16 +47,18 @@ test.describe('Rentals Page', () => {
   test('delete property', async ({ page }) => {
     await mockRentalsAPI(page, TEST_PROPERTIES, TEST_RENTAL_RECORDS);
     await page.goto('/rentals');
+    await page.waitForLoadState('networkidle');
 
     const propText = page.getByText('456 Oak Ave, Austin, TX');
     await expect(propText).toBeVisible({ timeout: 10000 });
 
-    // Click the trash button on the property card
-    const propCard = propText.locator('..').locator('..');
-    const deleteBtn = propCard.locator('button').last();
-    if (await deleteBtn.isVisible()) {
-      await deleteBtn.click();
-    }
+    // Handle the confirm dialog that deleteProperty() triggers
+    page.on('dialog', (dialog) => dialog.accept());
+
+    // Find the property card containing this address, then target the Trash2 button specifically
+    const propCard = page.locator('div.cursor-pointer').filter({ hasText: '456 Oak Ave, Austin, TX' });
+    const deleteBtn = propCard.locator('button').filter({ has: page.locator('svg.lucide-trash-2') });
+    await deleteBtn.click();
   });
 
   test('year selector changes stats', async ({ page }) => {
@@ -86,22 +90,26 @@ test.describe('Rentals Page', () => {
     await mockDocumentsAPI(page, []);
     await page.goto('/rentals');
 
-    const syncBtn = page.getByText('Sync from docs');
-    if (await syncBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await syncBtn.click();
+    // The button text in the component is "Sync" (short label)
+    const syncBtn = page.getByText(/^Sync/);
+    if (await syncBtn.first().isVisible({ timeout: 3000 }).catch(() => false)) {
+      await syncBtn.first().click();
     }
   });
 
   test('portfolio summary cards', async ({ page }) => {
     await mockRentalsAPI(page, TEST_PROPERTIES, TEST_RENTAL_RECORDS);
     await page.goto('/rentals');
+    await page.waitForLoadState('networkidle');
 
+    // Summary cards should show aggregated stats
     await expect(page.getByText(/properties/i)).toBeVisible();
   });
 
   test('Ask Claude button navigates to chat', async ({ page }) => {
     await mockRentalsAPI(page, TEST_PROPERTIES, TEST_RENTAL_RECORDS);
     await page.goto('/rentals');
+    await page.waitForLoadState('networkidle');
 
     const askBtn = page.getByRole('button', { name: /ask claude/i });
     if (await askBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -111,8 +119,11 @@ test.describe('Rentals Page', () => {
   });
 
   test('Bug: auto-dedup on load does not cause list flash', async ({ page }) => {
+    // mockRentalsAPI already handles /api/rentals/dedup, so no separate mock needed.
+    // The component calls dedup then refetches /api/rentals — both are handled by mockRentalsAPI.
     await mockRentalsAPI(page, TEST_PROPERTIES, TEST_RENTAL_RECORDS);
     await page.goto('/rentals');
+    await page.waitForLoadState('networkidle');
 
     // Properties should be visible without flashing
     await expect(page.getByText('123 Main St, San Francisco, CA')).toBeVisible({ timeout: 10000 });
