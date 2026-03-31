@@ -1,0 +1,137 @@
+import { test, expect } from '@playwright/test';
+import { mockSetupAPI } from '../helpers/api-mocks';
+import { TEST_SETUP_STATUS } from '../helpers/test-data';
+
+// Setup page tests run WITHOUT auth storage state
+test.use({ storageState: { cookies: [], origins: [] } });
+
+test.describe('Setup Page', () => {
+  test('displays environment status checklist', async ({ page }) => {
+    await mockSetupAPI(page, TEST_SETUP_STATUS);
+    await page.goto('/setup');
+
+    // Verify checklist items render
+    await expect(page.getByText('Anthropic API Key')).toBeVisible();
+    await expect(page.getByText('Database URL')).toBeVisible();
+    await expect(page.getByText('Database schema')).toBeVisible();
+    await expect(page.getByText('Admin account')).toBeVisible();
+  });
+
+  test('shows DB not connected warning with Check again button', async ({ page }) => {
+    await mockSetupAPI(page, { ...TEST_SETUP_STATUS, dbReady: false, dbError: 'Connection refused' });
+    await page.goto('/setup');
+
+    await expect(page.getByText('Database not connected')).toBeVisible();
+    await expect(page.getByText('Check again')).toBeVisible();
+  });
+
+  test('shows account creation form when DB ready but no admin', async ({ page }) => {
+    await mockSetupAPI(page, { ...TEST_SETUP_STATUS, dbReady: true, adminExists: false });
+    await page.goto('/setup');
+
+    await expect(page.getByText('Create your account')).toBeVisible();
+    await expect(page.getByLabel('Username')).toBeVisible();
+    await expect(page.getByLabel('Password')).toBeVisible();
+    await expect(page.getByLabel('Confirm password')).toBeVisible();
+  });
+
+  test('password validation - too short', async ({ page }) => {
+    await mockSetupAPI(page, { ...TEST_SETUP_STATUS, dbReady: true, adminExists: false });
+    await page.goto('/setup');
+
+    await page.getByLabel('Username').fill('testadmin');
+    await page.getByLabel('Password').fill('short');
+    await page.getByLabel('Confirm password').fill('short');
+    await page.getByRole('button', { name: /create account/i }).click();
+
+    await expect(page.getByText('Password must be at least 8 characters')).toBeVisible();
+  });
+
+  test('password validation - mismatch', async ({ page }) => {
+    await mockSetupAPI(page, { ...TEST_SETUP_STATUS, dbReady: true, adminExists: false });
+    await page.goto('/setup');
+
+    await page.getByLabel('Username').fill('testadmin');
+    await page.getByLabel('Password').fill('validpassword1');
+    await page.getByLabel('Confirm password').fill('validpassword2');
+    await page.getByRole('button', { name: /create account/i }).click();
+
+    await expect(page.getByText('Passwords do not match')).toBeVisible();
+  });
+
+  test('successful account creation redirects to login', async ({ page }) => {
+    await mockSetupAPI(page, { ...TEST_SETUP_STATUS, dbReady: true, adminExists: false });
+    await page.goto('/setup');
+
+    await page.getByLabel('Username').fill('testadmin');
+    await page.getByLabel('Password').fill('validpassword123');
+    await page.getByLabel('Confirm password').fill('validpassword123');
+    await page.getByRole('button', { name: /create account/i }).click();
+
+    await expect(page).toHaveURL(/\/login\?setup=done/);
+  });
+
+  test('shows ready state when admin exists', async ({ page }) => {
+    await mockSetupAPI(page, { ...TEST_SETUP_STATUS, adminExists: true, ready: true });
+    await page.goto('/setup');
+
+    await expect(page.getByText('Second Brain is ready')).toBeVisible();
+    await expect(page.getByRole('link', { name: /open dashboard/i })).toBeVisible();
+  });
+
+  test('show/hide password toggle', async ({ page }) => {
+    await mockSetupAPI(page, { ...TEST_SETUP_STATUS, dbReady: true, adminExists: false });
+    await page.goto('/setup');
+
+    const passwordInput = page.getByLabel('Password');
+    await expect(passwordInput).toHaveAttribute('type', 'password');
+
+    // Click the eye icon button
+    await page.locator('button').filter({ has: page.locator('svg') }).nth(0).click();
+
+    // After toggle, should be visible
+    await expect(passwordInput).toHaveAttribute('type', 'text');
+  });
+
+  test('form submit button disabled when fields empty', async ({ page }) => {
+    await mockSetupAPI(page, { ...TEST_SETUP_STATUS, dbReady: true, adminExists: false });
+    await page.goto('/setup');
+
+    const submitBtn = page.getByRole('button', { name: /create account/i });
+    await expect(submitBtn).toBeDisabled();
+  });
+
+  test('Bug: network error on POST shows error message', async ({ page }) => {
+    await page.route('**/api/setup', async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({ json: { ...TEST_SETUP_STATUS, dbReady: true, adminExists: false } });
+      } else {
+        await route.abort('connectionrefused');
+      }
+    });
+    await page.goto('/setup');
+
+    await page.getByLabel('Username').fill('testadmin');
+    await page.getByLabel('Password').fill('validpassword123');
+    await page.getByLabel('Confirm password').fill('validpassword123');
+    await page.getByRole('button', { name: /create account/i }).click();
+
+    await expect(page.getByText(/network error/i)).toBeVisible();
+  });
+
+  test('Refresh status button works', async ({ page }) => {
+    let callCount = 0;
+    await page.route('**/api/setup', async (route) => {
+      callCount++;
+      await route.fulfill({ json: TEST_SETUP_STATUS });
+    });
+    await page.goto('/setup');
+    await page.waitForTimeout(500);
+
+    const initialCalls = callCount;
+    await page.getByRole('button', { name: /refresh status/i }).click();
+    await page.waitForTimeout(500);
+
+    expect(callCount).toBeGreaterThan(initialCalls);
+  });
+});

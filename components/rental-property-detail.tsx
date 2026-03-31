@@ -46,6 +46,7 @@ interface Props {
 export default function RentalPropertyDetail({ propertyId }: Props) {
   const router = useRouter();
   const [property, setProperty] = useState<Property | null>(null);
+  const [notFound, setNotFound] = useState(false);
   const [records, setRecords] = useState<RentalRecord[]>([]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [addingRecord, setAddingRecord] = useState(false);
@@ -62,7 +63,16 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
   });
 
   useEffect(() => {
-    fetch(`/api/rentals/${propertyId}`).then((r) => r.json()).then(setProperty);
+    fetch(`/api/rentals/${propertyId}`)
+      .then((r) => {
+        if (!r.ok) throw new Error('Not found');
+        return r.json();
+      })
+      .then((data) => {
+        if (!data || !data.address) throw new Error('Invalid property');
+        setProperty(data);
+      })
+      .catch(() => setNotFound(true));
   }, [propertyId]);
 
   useEffect(() => {
@@ -133,6 +143,12 @@ export default function RentalPropertyDetail({ propertyId }: Props) {
     router.replace('/rentals');
   }
 
+  if (notFound) return (
+    <div className="p-4 pt-10 text-center">
+      <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Property not found</p>
+      <button onClick={() => router.replace('/rentals')} className="text-sm text-sky-600 mt-2">Back to all properties</button>
+    </div>
+  );
   if (!property) return <div className="p-4 text-gray-400 text-sm">Loading...</div>;
 
   const annualRent = records.reduce((s, r) => s + Number(r.rent_collected), 0);

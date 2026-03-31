@@ -82,6 +82,13 @@ export default function TaxReturnsPage() {
 
   useEffect(() => {
     loadReturn(year, country);
+    // Cleanup: clear pending save timer when year/country changes or component unmounts
+    return () => {
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+    };
   }, [year, country, loadReturn]);
 
   async function syncFromDocs() {

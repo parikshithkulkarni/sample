@@ -1,6 +1,6 @@
 import { useEffect, type RefObject } from 'react';
 
-export function useFocusTrap(ref: RefObject<HTMLElement | null>, active: boolean) {
+export function useFocusTrap(ref: RefObject<HTMLElement | null>, active: boolean, onEscape?: () => void) {
   useEffect(() => {
     if (!active || !ref.current) return;
     const el = ref.current;
@@ -14,6 +14,7 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, active: boolean
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         previouslyFocused?.focus();
+        onEscape?.();
         return;
       }
       if (e.key !== 'Tab') return;

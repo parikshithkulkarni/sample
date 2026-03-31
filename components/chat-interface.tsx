@@ -55,7 +55,9 @@ export default function ChatInterface({ initialQuestion }: Props) {
   const inputRef  = useRef<HTMLInputElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const sentRef   = useRef(false);
+  const userScrolledUp = useRef(false);
 
   const { messages, input, setInput, setMessages, handleInputChange,
           handleSubmit, isLoading, append } = useChat({
@@ -86,10 +88,24 @@ export default function ChatInterface({ initialQuestion }: Props) {
     }
   }, [initialQuestion, append]);
 
-  // Auto-scroll
+  // Auto-scroll only when user has not scrolled up
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!userScrolledUp.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
+
+  // Track user scroll position to avoid overriding manual scroll
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const handler = () => {
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      userScrolledUp.current = !atBottom;
+    };
+    el.addEventListener('scroll', handler);
+    return () => el.removeEventListener('scroll', handler);
+  }, []);
 
   // @mention detection
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -166,6 +182,8 @@ export default function ChatInterface({ initialQuestion }: Props) {
       const msgs: Message[] = data.messages.map((m) => ({ id: m.id, role: m.role as 'user' | 'assistant', content: m.content }));
       setMessages(msgs);
       setSessionId(id);
+      setMentionedDocs([]);
+      setShowPicker(false);
     } catch { /* ignore */ }
   }
 
@@ -188,7 +206,7 @@ export default function ChatInterface({ initialQuestion }: Props) {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-2">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 pb-2">
         {messages.length === 0 && (
           <div className="text-center text-gray-400 text-sm mt-16">
             <p className="text-2xl mb-2">🧠</p>

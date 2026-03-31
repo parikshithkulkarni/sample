@@ -344,6 +344,7 @@ export default function FinanceOverview() {
   }
 
   async function remove(id: string) {
+    if (!confirm('Remove this account?')) return;
     const prev = accounts;
     setAccounts((cur) => cur.filter((a) => a.id !== id));
     try {
@@ -365,6 +366,8 @@ export default function FinanceOverview() {
         {editId === a.id ? (
           <>
             <input
+              type="number"
+              step="any"
               value={editBalance}
               onChange={(e) => setEditBalance(e.target.value)}
               className="w-28 border border-gray-200 rounded-lg px-2 py-1 text-sm text-right dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"

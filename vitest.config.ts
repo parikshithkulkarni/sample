@@ -12,6 +12,7 @@ export default defineConfig({
       include: ['lib/**/*.ts', 'app/api/**/*.ts'],
       exclude: ['lib/auth.ts', 'lib/db.ts'],
     },
+    exclude: ['e2e/**', 'node_modules/**'],
     // Run integration tests sequentially to avoid mock state conflicts
     pool: 'forks',
   },
