@@ -3,6 +3,12 @@
   "buildCommand": "next build",
   "installCommand": "npm install",
   "outputDirectory": ".next",
+  "crons": [
+    {
+      "path": "/api/errors/analyze",
+      "schedule": "*/5 * * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",

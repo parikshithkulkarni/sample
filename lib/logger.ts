@@ -1,3 +1,5 @@
+import { reportError } from '@/lib/error-reporter';
+
 type LogLevel = 'info' | 'warn' | 'error';
 
 interface LogEntry {
@@ -33,12 +35,27 @@ export const logger = {
   },
   error(msg: string, err?: unknown, data?: Record<string, unknown>) {
     const errorData: Record<string, unknown> = { ...data };
+    let errorMessage = msg;
+    let errorStack: string | undefined;
+
     if (err instanceof Error) {
       errorData.error = err.message;
       errorData.stack = err.stack;
+      errorMessage = `${msg}: ${err.message}`;
+      errorStack = err.stack;
     } else if (err !== undefined) {
       errorData.error = String(err);
+      errorMessage = `${msg}: ${String(err)}`;
     }
     console.error(serialize(formatEntry('error', msg, errorData)));
+
+    // Side-effect: report to error monitoring (fire-and-forget)
+    reportError({
+      source: 'be',
+      severity: 'error',
+      message: errorMessage,
+      stack: errorStack,
+      context: data,
+    });
   },
 };

@@ -4,6 +4,7 @@ import Nav from '@/components/nav';
 import CaptureModal from '@/components/capture-modal';
 import AuthProvider from '@/components/auth-provider';
 import DbWarmer from '@/components/db-warmer';
+import ErrorReporterProvider from '@/components/error-reporter-provider';
 import { ThemeProvider } from '@/components/theme-provider';
 import { ToastProvider } from '@/components/toast';
 
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <ToastProvider>
             <AuthProvider>
+              <ErrorReporterProvider>
               <DbWarmer />
               <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[70] focus:bg-white focus:dark:bg-gray-900 focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg focus:text-sm focus:font-medium">
                 Skip to main content
@@ -40,6 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </main>
               <Nav />
               <CaptureModal />
+              </ErrorReporterProvider>
             </AuthProvider>
           </ToastProvider>
         </ThemeProvider>
