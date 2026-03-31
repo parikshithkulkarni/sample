@@ -291,7 +291,8 @@ export async function extractAndInsert(documentId: string): Promise<{ accounts: 
     }
 
     return { accounts: insertedAccounts, properties: insertedProperties, rentalRecords: insertedRecords, taxData: insertedTaxData };
-  } catch {
+  } catch (err) {
+    console.error('[extractAndInsert] Extraction failed for document', documentId, err);
     return { accounts: [], properties: [], rentalRecords: [], taxData: [] };
   }
 }

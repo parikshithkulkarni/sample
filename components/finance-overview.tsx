@@ -299,10 +299,12 @@ export default function FinanceOverview() {
       // Re-extract all documents, then cleanup
       const res1 = await fetch('/api/documents/extract-all', { method: 'POST' });
       if (!res1.ok) throw new Error(`Extraction failed: ${res1.status}`);
+      const extractResult = await res1.json() as { processed: number; results: { name: string; taxData: string[] }[] };
+      const totalTaxData = extractResult.results?.reduce((s: number, r: { taxData: string[] }) => s + (r.taxData?.length ?? 0), 0) ?? 0;
       await fetch('/api/finance/cleanup', { method: 'POST' }).catch(() => {});
       const res = await fetch('/api/finance').then(r => r.json());
       setAccounts(Array.isArray(res) ? res : res?.data ?? []);
-      addToast('Synced from documents', 'success');
+      addToast(`Synced ${extractResult.processed} docs, ${totalTaxData} tax entries`, 'success');
     } catch (e) {
       addToast(e instanceof Error ? e.message : 'Sync failed', 'error');
     } finally {

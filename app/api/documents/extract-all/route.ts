@@ -18,8 +18,9 @@ export async function POST(_req: Request) {
       const r = await extractAndInsert(doc.id);
       results.push({ name: doc.name, ...r });
     } catch (err) {
-      logger.error(`Extraction failed for ${doc.name}`, err);
-      results.push({ name: doc.name, accounts: [], properties: [], rentalRecords: [], taxData: [] });
+      const errMsg = err instanceof Error ? err.message : String(err);
+      logger.error(`Extraction failed for ${doc.name}: ${errMsg}`, err);
+      results.push({ name: doc.name, accounts: [], properties: [], rentalRecords: [], taxData: [], error: errMsg });
     }
   }
 
