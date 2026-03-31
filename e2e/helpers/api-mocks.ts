@@ -87,10 +87,19 @@ export async function mockRentalsAPI(page: Page, properties: Record<string, unkn
   await page.route('**/api/rentals/merge', async (route) => {
     await route.fulfill({ json: { ok: true } });
   });
-  await page.route('**/api/rentals/*/records', async (route) => {
+  await page.route('**/api/rentals/*/records*', async (route) => {
     const method = route.request().method();
     if (method === 'GET') {
-      await route.fulfill({ json: records });
+      // Extract the property ID from the URL and filter records accordingly
+      const urlPath = new URL(route.request().url()).pathname;
+      const segments = urlPath.split('/');
+      // URL pattern: /api/rentals/<propertyId>/records
+      const propertyIdIdx = segments.indexOf('rentals') + 1;
+      const propertyId = segments[propertyIdIdx];
+      const filtered = records.filter(
+        (r) => (r as Record<string, unknown>).property_id === propertyId,
+      );
+      await route.fulfill({ json: filtered });
     } else if (method === 'POST') {
       const body = route.request().postDataJSON();
       await route.fulfill({ json: { id: 'new-rec-1', ...body } });
@@ -106,13 +115,14 @@ export async function mockRentalsAPI(page: Page, properties: Record<string, unkn
       await route.continue();
       return;
     }
+    // Extract the property ID from the URL path, ignoring query params
+    const urlPath = new URL(url).pathname;
+    const id = urlPath.split('/').pop();
     if (method === 'GET') {
-      const id = url.split('/').pop();
       const prop = properties.find((p) => (p as Record<string, unknown>).id === id);
       await route.fulfill({ json: prop ?? {} });
     } else if (method === 'PATCH') {
       const body = route.request().postDataJSON();
-      const id = url.split('/').pop();
       const prop = properties.find((p) => (p as Record<string, unknown>).id === id);
       await route.fulfill({ json: { ...prop, ...body } });
     } else if (method === 'DELETE') {
@@ -307,5 +317,8 @@ export async function mockDashboardAPIs(
   });
   await page.route('**/api/documents/extract-all', async (route) => {
     await route.fulfill({ json: { ok: true } });
+  });
+  await page.route('**/api/insights', async (route) => {
+    await route.fulfill({ json: { insights: [] } });
   });
 }

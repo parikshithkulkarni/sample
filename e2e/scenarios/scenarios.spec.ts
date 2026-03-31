@@ -133,14 +133,15 @@ test.describe('Tax Scenarios Page', () => {
     await page.getByPlaceholder('10.00').fill('15');
     await page.getByPlaceholder('50.00').fill('80');
 
-    // Click analyze rapidly
+    // Click analyze — form hides after first submit (submitted=true hides form)
     const analyzeBtn = page.getByRole('button', { name: /analyze/i });
     await analyzeBtn.click();
-    await analyzeBtn.click();
-    await analyzeBtn.click();
+
+    // The form (and button) should hide after the first submit sets submitted=true
+    await expect(analyzeBtn).not.toBeVisible({ timeout: 5000 });
 
     await page.waitForTimeout(2000);
-    // Should only send 1 request (form hides after first submit)
-    expect(submitCount).toBeLessThanOrEqual(2);
+    // Should only send 1 request since the form hides immediately
+    expect(submitCount).toBe(1);
   });
 });

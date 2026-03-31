@@ -26,8 +26,10 @@ test.describe('Dashboard', () => {
     await mockDashboardAPIs(page, {});
     await page.goto('/');
 
-    await page.getByPlaceholder('Ask your brain anything').fill('what is my net worth');
-    await page.locator('form button[type="submit"]').first().click();
+    const quickAskInput = page.getByPlaceholder('Ask your brain anything');
+    await quickAskInput.fill('what is my net worth');
+    // Target the submit button that is a sibling of the quick ask input
+    await quickAskInput.locator('..').locator('button[type="submit"]').click();
 
     await expect(page).toHaveURL(/\/chat\?q=what%20is%20my%20net%20worth/);
   });
@@ -36,7 +38,7 @@ test.describe('Dashboard', () => {
     await mockDashboardAPIs(page, {});
     await page.goto('/');
 
-    const submitBtn = page.locator('form button[type="submit"]').first();
+    const submitBtn = page.getByPlaceholder('Ask your brain anything').locator('..').locator('button[type="submit"]');
     await expect(submitBtn).toHaveClass(/disabled:opacity-40/);
   });
 
@@ -95,10 +97,12 @@ test.describe('Dashboard', () => {
   });
 
   test('sync from docs button shows spinner', async ({ page }) => {
+    // Pass TEST_ACCOUNTS so the dashboard exits the empty state and shows the sync button
     await mockDashboardAPIs(page, { accounts: TEST_ACCOUNTS });
     await page.goto('/');
 
     const syncBtn = page.getByText('Sync from docs');
+    await expect(syncBtn).toBeVisible({ timeout: 5000 });
     await syncBtn.click();
 
     await expect(page.getByText('Syncing from docs')).toBeVisible();

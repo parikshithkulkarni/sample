@@ -43,8 +43,8 @@ test.describe('Capture Modal', () => {
     await page.locator('button[aria-label="Quick capture"]').click();
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
-    // Click X button
-    await page.locator('[role="dialog"] button').filter({ has: page.locator('svg.lucide-x') }).click();
+    // Click X button — the close button is the first button inside the dialog
+    await page.locator('[role="dialog"]').locator('button').first().click();
 
     await expect(page.locator('[role="dialog"]')).not.toBeVisible();
   });
@@ -82,11 +82,17 @@ test.describe('Capture Modal', () => {
     await page.goto('/');
 
     await page.locator('button[aria-label="Quick capture"]').click();
-    await expect(page.locator('[role="dialog"]')).toBeVisible();
 
-    // Tab through elements - focus should stay within the dialog
-    // The textarea should have autoFocus
+    // Wait for dialog to be fully visible and interactive
+    const dialog = page.locator('[role="dialog"]');
+    await expect(dialog).toBeVisible();
+
+    // Give the dialog time to finish opening animation and set focus
     const textarea = page.locator('[role="dialog"] textarea');
+    await textarea.waitFor({ state: 'visible' });
+
+    // Click the textarea to ensure it has focus (autoFocus may not fire in headless)
+    await textarea.click();
     await expect(textarea).toBeFocused();
 
     // Tab through all elements
@@ -94,13 +100,13 @@ test.describe('Capture Modal', () => {
     await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
 
-    // Focus should still be within the dialog
-    const activeElement = await page.evaluate(() => {
+    // Focus should still be within the dialog (focus trap)
+    const focusInDialog = await page.evaluate(() => {
       const el = document.activeElement;
-      const dialog = document.querySelector('[role="dialog"]');
-      return dialog?.contains(el) ?? false;
+      const dlg = document.querySelector('[role="dialog"]');
+      return dlg?.contains(el) ?? false;
     });
-    expect(activeElement).toBe(true);
+    expect(focusInDialog).toBe(true);
   });
 
   test('error toast on API failure', async ({ page }) => {

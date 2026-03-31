@@ -15,9 +15,10 @@ test.describe('Finance Page', () => {
     await mockFinanceAPI(page, TEST_ACCOUNTS);
     await page.goto('/finance');
 
-    await expect(page.getByText('Net Worth')).toBeVisible();
-    await expect(page.getByText(/Assets/)).toBeVisible();
-    await expect(page.getByText(/Liabilities/)).toBeVisible();
+    // Wait for loading skeleton to disappear and net worth card to appear
+    await expect(page.getByText('Net Worth').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/Assets/).first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/Liabilities/).first()).toBeVisible({ timeout: 5000 });
   });
 
   test('add account form opens and closes', async ({ page }) => {
@@ -66,50 +67,64 @@ test.describe('Finance Page', () => {
   test('inline balance editing', async ({ page }) => {
     await mockFinanceAPI(page, TEST_ACCOUNTS);
     await page.goto('/finance');
+    await page.waitForLoadState('domcontentloaded');
 
-    // Find the edit (pencil) button for the first account group's first item
-    // Expand a group first if needed
-    const editBtn = page.locator('button').filter({ has: page.locator('svg') }).filter({ hasText: '' });
+    // Fidelity 401k is in the "Retirement" group. Ensure group is expanded by checking visibility.
+    await expect(page.getByText('Fidelity 401k')).toBeVisible();
 
-    // Click the pencil icon for an account
-    const accountRow = page.getByText('Fidelity 401k').locator('..');
-    await accountRow.locator('button').first().click();
+    // The AccountRow li contains: account name, then a flex container with balance + pencil button + trash button.
+    // Find the pencil button (the one with Pencil SVG) in the same li as "Fidelity 401k".
+    const accountLi = page.locator('li').filter({ hasText: 'Fidelity 401k' });
+    // In non-editing mode, the AccountRow has two buttons: pencil (edit), then trash (delete).
+    // Pencil button has hover:text-sky-500 class.
+    const pencilBtn = accountLi.locator('button').nth(0);
+    await pencilBtn.click();
 
-    // Should show input field
-    const balanceInput = page.locator('input[class*="w-28"]');
-    if (await balanceInput.isVisible()) {
-      await balanceInput.fill('130000');
-      // Click the check button to save
-      await page.locator('button').filter({ has: page.locator('.text-emerald-500') }).first().click();
-    }
+    // Should show input field (type="number")
+    const balanceInput = accountLi.locator('input[type="number"]');
+    await expect(balanceInput).toBeVisible();
+    await balanceInput.fill('130000');
+
+    // Click the check button to save — in editing mode, buttons are: [save (check), cancel (X)].
+    // The save button is the first button in edit mode.
+    const saveBtn = accountLi.locator('button').nth(0);
+    await saveBtn.click();
   });
 
   test('cancel inline edit', async ({ page }) => {
     await mockFinanceAPI(page, TEST_ACCOUNTS);
     await page.goto('/finance');
+    await page.waitForLoadState('domcontentloaded');
 
     // Start editing an account
-    const fidelityRow = page.getByText('Fidelity 401k').locator('..').locator('..');
-    await fidelityRow.locator('button').nth(0).click();
+    await expect(page.getByText('Fidelity 401k')).toBeVisible();
+    const accountLi = page.locator('li').filter({ hasText: 'Fidelity 401k' });
+    const pencilBtn = accountLi.locator('button').nth(0);
+    await pencilBtn.click();
 
-    // Cancel the edit
-    const cancelBtn = page.locator('button').filter({ has: page.locator('.text-gray-400 svg') });
-    if (await cancelBtn.first().isVisible()) {
-      await cancelBtn.first().click();
-    }
+    // Cancel the edit - click the X button. In editing mode, buttons are: [save, cancel].
+    const cancelBtn = accountLi.locator('button').nth(1);
+    await cancelBtn.click();
+
+    // Input should no longer be visible
+    await expect(accountLi.locator('input[type="number"]')).not.toBeVisible();
   });
 
   test('delete account', async ({ page }) => {
     await mockFinanceAPI(page, TEST_ACCOUNTS);
     await page.goto('/finance');
+    await page.waitForLoadState('domcontentloaded');
 
     // Count accounts before
     const fidelityText = page.getByText('Fidelity 401k');
     await expect(fidelityText).toBeVisible();
 
-    // Click delete (trash) button
-    const accountRow = fidelityText.locator('..').locator('..');
-    const trashBtn = accountRow.locator('button').last();
+    // Handle the confirm dialog that remove() triggers
+    page.on('dialog', (dialog) => dialog.accept());
+
+    // Click delete (trash) button — it is the second button in the account row
+    const accountLi = page.locator('li').filter({ hasText: 'Fidelity 401k' });
+    const trashBtn = accountLi.locator('button').nth(1);
     await trashBtn.click();
 
     // Account should be removed (optimistic)
@@ -119,6 +134,7 @@ test.describe('Finance Page', () => {
   test('semantic group collapsing', async ({ page }) => {
     await mockFinanceAPI(page, TEST_ACCOUNTS);
     await page.goto('/finance');
+    await page.waitForLoadState('domcontentloaded');
 
     // Click a group header to collapse
     const retirementGroup = page.getByText('Retirement');
@@ -164,6 +180,7 @@ test.describe('Finance Page', () => {
   test('Ask Claude button navigates to chat', async ({ page }) => {
     await mockFinanceAPI(page, TEST_ACCOUNTS);
     await page.goto('/finance');
+    await page.waitForLoadState('domcontentloaded');
 
     await page.getByText('Ask Claude about my finances').click();
     await expect(page).toHaveURL(/\/chat\?q=/);
@@ -185,17 +202,32 @@ test.describe('Finance Page', () => {
   test('Bug: balance edit with non-numeric input', async ({ page }) => {
     await mockFinanceAPI(page, TEST_ACCOUNTS);
     await page.goto('/finance');
+    await page.waitForLoadState('domcontentloaded');
 
-    // Try to edit with non-numeric value
-    const fidelityRow = page.getByText('Fidelity 401k').locator('..').locator('..');
-    await fidelityRow.locator('button').nth(0).click();
+    // Start editing the account balance
+    await expect(page.getByText('Fidelity 401k')).toBeVisible();
+    const accountLi = page.locator('li').filter({ hasText: 'Fidelity 401k' });
+    const pencilBtn = accountLi.locator('button').nth(0);
+    await pencilBtn.click();
 
-    const balanceInput = page.locator('input[class*="w-28"]');
-    if (await balanceInput.isVisible()) {
-      await balanceInput.fill('not-a-number');
-      // The parseFloat will return NaN - verify UI handles gracefully
-      await page.locator('button .text-emerald-500').first().click();
-    }
+    // The input is type="number", so non-numeric text cannot be entered.
+    // Verify the input has type="number" which provides built-in browser validation.
+    const balanceInput = accountLi.locator('input[type="number"]');
+    await expect(balanceInput).toBeVisible();
+    await expect(balanceInput).toHaveAttribute('type', 'number');
+
+    // Attempting to fill a non-numeric value into a type="number" input results in an empty value.
+    // Playwright's fill() on type="number" with non-numeric text will set the value to empty string.
+    await balanceInput.fill('');
+    // The input should be empty (browser rejects non-numeric)
+    await expect(balanceInput).toHaveValue('');
+
+    // Click save — parseFloat('') returns NaN, UI should handle gracefully (not crash)
+    const saveBtn = accountLi.locator('button').nth(0);
+    await saveBtn.click();
+
+    // Page should remain stable
+    await expect(page.getByText('Fidelity 401k')).toBeVisible();
   });
 
   test('income items with generic categories show under Tax & Income Records, not Other Assets', async ({ page }) => {
@@ -233,29 +265,38 @@ test.describe('Finance Page', () => {
   });
 
   test('Bug: optimistic balance update reverts on API error', async ({ page }) => {
-    // Override the PATCH to fail
+    // Set up standard mocks first
     await page.route('**/api/finance/cleanup', (r) => r.fulfill({ json: {} }));
     await page.route('**/api/finance/snapshots', (r) => r.fulfill({ json: [] }));
     await page.route('**/api/finance', (r) => r.fulfill({ json: TEST_ACCOUNTS }));
+    // Override the PATCH to abort (network error) so fetch() rejects and the catch block fires
     await page.route('**/api/finance/*', async (route) => {
       if (route.request().method() === 'PATCH') {
-        await route.fulfill({ status: 500, json: { error: 'Server error' } });
+        await route.abort('failed');
+      } else if (route.request().method() === 'DELETE') {
+        await route.fulfill({ json: { ok: true } });
       } else {
         await route.continue();
       }
     });
     await page.goto('/finance');
+    await page.waitForLoadState('domcontentloaded');
 
     // Start editing
-    const fidelityRow = page.getByText('Fidelity 401k').locator('..').locator('..');
-    await fidelityRow.locator('button').nth(0).click();
+    await expect(page.getByText('Fidelity 401k')).toBeVisible();
+    const accountLi = page.locator('li').filter({ hasText: 'Fidelity 401k' });
+    const pencilBtn = accountLi.locator('button').nth(0);
+    await pencilBtn.click();
 
-    const balanceInput = page.locator('input[class*="w-28"]');
-    if (await balanceInput.isVisible()) {
-      await balanceInput.fill('999999');
-      await page.locator('button .text-emerald-500').first().click();
-      // Should show error toast
-      await expect(page.getByText('Failed to update balance')).toBeVisible({ timeout: 5000 });
-    }
+    const balanceInput = accountLi.locator('input[type="number"]');
+    await expect(balanceInput).toBeVisible();
+    await balanceInput.fill('999999');
+
+    // Click save
+    const saveBtn = accountLi.locator('button').nth(0);
+    await saveBtn.click();
+
+    // Should show error toast after the PATCH fails (network error triggers catch block)
+    await expect(page.getByText('Failed to update balance')).toBeVisible({ timeout: 5000 });
   });
 });

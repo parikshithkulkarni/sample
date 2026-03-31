@@ -17,16 +17,21 @@ test.describe('Tax Returns Page', () => {
 
   test('country toggle US/India', async ({ page }) => {
     await page.goto('/taxes');
+    await page.waitForLoadState('domcontentloaded');
 
-    // Should default to US
-    await expect(page.getByText('US')).toBeVisible();
+    // Should default to US — wait for the page to fully render
+    await expect(page.getByText('US')).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('India')).toBeVisible();
 
-    // Click India toggle
-    await page.getByRole('button', { name: 'India' }).click();
+    // Click India toggle — use a broader locator that matches the button
+    // containing the India text (which may include flag emoji like "🇮🇳 India (ITR)")
+    await page.getByRole('button', { name: /india/i }).click();
 
-    // Should show India form fields
-    await expect(page.getByText(/residential status|regime/i)).toBeVisible({ timeout: 5000 });
+    // Wait for the India tax form to load after toggling
+    await page.waitForLoadState('domcontentloaded');
+
+    // Should show India form fields — the TaxReturnIndia component renders "Residential Status" label
+    await expect(page.getByText('Residential Status')).toBeVisible({ timeout: 15000 });
   });
 
   test('US form renders with correct fields', async ({ page }) => {
@@ -52,7 +57,7 @@ test.describe('Tax Returns Page', () => {
     await mockTaxReturnsAPI(page, indiaReturn);
     await page.goto('/taxes');
 
-    await page.getByRole('button', { name: 'India' }).click();
+    await page.getByRole('button', { name: /india/i }).click();
   });
 
   test('auto-save debounce fires after 800ms', async ({ page }) => {
@@ -94,9 +99,11 @@ test.describe('Tax Returns Page', () => {
   test('year navigation arrows', async ({ page }) => {
     await page.goto('/taxes');
 
-    // Look for arrow buttons
-    const leftArrow = page.locator('button').filter({ has: page.locator('svg.lucide-chevron-left') });
-    const rightArrow = page.locator('button').filter({ has: page.locator('svg.lucide-chevron-right') });
+    // Look for arrow buttons flanking the year list
+    // The year nav container is a flex row with: left arrow button, year list, right arrow button
+    const yearNavContainer = page.locator('.flex.items-center.gap-2.mb-2');
+    const leftArrow = yearNavContainer.locator('button').first();
+    const rightArrow = yearNavContainer.locator('button').last();
 
     if (await leftArrow.isVisible()) {
       await leftArrow.click();
