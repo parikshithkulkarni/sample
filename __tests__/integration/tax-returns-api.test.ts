@@ -116,6 +116,31 @@ describe('POST /api/tax-returns (sync)', () => {
     const data = await res.json();
     expect(data.tax_year).toBe(2024);
   });
+
+  it('does NOT reset existing data to defaults (preserves document-extracted values)', async () => {
+    // Return with document-extracted wages already set
+    const returnWithWages = {
+      ...MOCK_RETURN,
+      data: { ...US_DEFAULT, income: { ...US_DEFAULT.income, wages: 265798 } },
+      sources: { 'income.wages': { label: 'W2-2025.pdf', type: 'document' } },
+    };
+    mockSql.mockResolvedValue([returnWithWages] as never);
+
+    const res = await taxPOST(new Request('http://localhost/api/tax-returns', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ year: 2025, country: 'US' }),
+    }));
+    const data = await res.json();
+
+    // Wages from document extraction must be preserved, not reset to 0
+    expect(data.data.income.wages).toBe(265798);
+
+    // No SQL UPDATE that resets data to defaults should have been called
+    const sqlCalls = mockSql.mock.calls.map(c => (c[0] as unknown as string[]).join(''));
+    const hasReset = sqlCalls.some(q => q.includes('UPDATE') && q.includes('tax_returns') && q.includes('SET data'));
+    expect(hasReset).toBe(false);
+  });
 });
 
 describe('PATCH /api/tax-returns/[id]', () => {
