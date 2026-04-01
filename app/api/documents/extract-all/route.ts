@@ -11,7 +11,15 @@ export async function POST(_req: Request) {
   if (!session) return new Response('Unauthorized', { status: 401 });
 
   const docs = await sql`SELECT id, name FROM documents ORDER BY added_at ASC`;
-  const results: { name: string; accounts: string[]; properties: string[]; rentalRecords: string[]; taxData: string[]; error?: string }[] = [];
+  interface ExtractResult {
+    name: string;
+    accounts: string[];
+    properties: string[];
+    rentalRecords: string[];
+    taxData: string[];
+    error?: string;
+  }
+  const results: ExtractResult[] = [];
 
   for (const doc of docs as { id: string; name: string }[]) {
     try {
