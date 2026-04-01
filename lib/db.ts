@@ -163,6 +163,44 @@ export async function runMigrations() {
   await sql`ALTER TABLE documents ADD COLUMN IF NOT EXISTS doc_type TEXT`;
   await sql`ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS summary TEXT`;
   await sql`ALTER TABLE deadlines ADD COLUMN IF NOT EXISTS ai_context TEXT`;
+
+  // ── Error monitoring ────────────────────────────────────────────────────────
+  await sql`
+    CREATE TABLE IF NOT EXISTS error_groups (
+      id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      fingerprint       TEXT UNIQUE NOT NULL,
+      source            TEXT NOT NULL CHECK (source IN ('fe','be','db','browser','network')),
+      severity          TEXT NOT NULL CHECK (severity IN ('critical','error','warning','info')),
+      message           TEXT NOT NULL,
+      sample_stack      TEXT,
+      occurrence_count  INTEGER NOT NULL DEFAULT 1,
+      first_seen        TIMESTAMPTZ DEFAULT now(),
+      last_seen         TIMESTAMPTZ DEFAULT now(),
+      status            TEXT NOT NULL DEFAULT 'new',
+      analysis          JSONB,
+      proposed_fix      TEXT,
+      github_issue_url  TEXT,
+      created_at        TIMESTAMPTZ DEFAULT now()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS error_groups_status_idx ON error_groups (status, last_seen DESC)`;
+  await sql`CREATE INDEX IF NOT EXISTS error_groups_fingerprint_idx ON error_groups (fingerprint)`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS error_events (
+      id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      fingerprint TEXT NOT NULL,
+      group_id    UUID REFERENCES error_groups(id) ON DELETE CASCADE,
+      source      TEXT NOT NULL,
+      severity    TEXT NOT NULL,
+      message     TEXT NOT NULL,
+      stack_trace TEXT,
+      context     JSONB NOT NULL DEFAULT '{}',
+      created_at  TIMESTAMPTZ DEFAULT now()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS error_events_group_idx ON error_events (group_id, created_at DESC)`;
+  await sql`CREATE INDEX IF NOT EXISTS error_events_created_idx ON error_events (created_at DESC)`;
 }
 
 // ── Seed data ─────────────────────────────────────────────────────────────────
