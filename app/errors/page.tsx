@@ -117,7 +117,7 @@ export default function ErrorsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Error Monitor</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Error Monitoring</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Real-time error tracking & AI analysis</p>
         </div>
         <button
