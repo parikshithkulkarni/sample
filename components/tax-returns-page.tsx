@@ -95,6 +95,7 @@ export default function TaxReturnsPage() {
 
   async function syncFromDocs() {
     if (!taxReturn) return;
+    alert('Sync started — this confirms new code is deployed');
     setSyncing(true);
     try {
       // Step 1: Re-extract documents (writes correct tax_data)
