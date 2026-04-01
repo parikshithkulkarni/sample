@@ -12,6 +12,10 @@ function clientFingerprint(source: string, message: string): string {
   return hash.toString(36);
 }
 
+// Keep a reference to the original fetch before we monkey-patch it,
+// so sendError never goes through the interceptor (avoids infinite loops).
+const _nativeFetch = typeof window !== 'undefined' ? window.fetch.bind(window) : undefined;
+
 function sendError(payload: {
   source: 'fe' | 'browser' | 'network';
   severity: 'critical' | 'error' | 'warning';
@@ -20,12 +24,11 @@ function sendError(payload: {
   context?: Record<string, unknown>;
 }) {
   try {
-    // Use sendBeacon for reliability (works even during page unload)
     const body = JSON.stringify(payload);
-    if (navigator.sendBeacon) {
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
       navigator.sendBeacon('/api/errors/ingest', new Blob([body], { type: 'application/json' }));
-    } else {
-      fetch('/api/errors/ingest', {
+    } else if (_nativeFetch) {
+      _nativeFetch('/api/errors/ingest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body,

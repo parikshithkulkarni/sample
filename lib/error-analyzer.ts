@@ -88,7 +88,14 @@ Respond in JSON format only:
     throw new Error('Failed to parse analysis response');
   }
 
-  const analysis: AnalysisResult = JSON.parse(jsonMatch[0]);
+  const raw = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+  const analysis: AnalysisResult = {
+    rootCause: String(raw.rootCause ?? 'Unknown'),
+    impact: String(raw.impact ?? 'Unknown'),
+    suggestedFix: String(raw.suggestedFix ?? 'No fix suggested'),
+    affectedArea: String(raw.affectedArea ?? 'Unknown'),
+    confidence: (['high', 'medium', 'low'].includes(String(raw.confidence)) ? raw.confidence : 'low') as AnalysisResult['confidence'],
+  };
 
   // Persist analysis to DB
   await sql`
@@ -107,22 +114,24 @@ Respond in JSON format only:
  * Returns the number of groups analyzed.
  */
 export async function processNewErrors(): Promise<number> {
+  // Atomically claim groups for analysis (prevents race condition if two crons overlap)
   const groups = await sql`
-    SELECT id, fingerprint, source, severity, message, sample_stack,
-           occurrence_count, first_seen, last_seen
-    FROM error_groups
-    WHERE status = 'new'
-    ORDER BY
-      CASE severity WHEN 'critical' THEN 0 WHEN 'error' THEN 1 WHEN 'warning' THEN 2 ELSE 3 END,
-      occurrence_count DESC
-    LIMIT 5
+    UPDATE error_groups
+    SET status = 'analyzing'
+    WHERE id IN (
+      SELECT id FROM error_groups
+      WHERE status = 'new'
+      ORDER BY
+        CASE severity WHEN 'critical' THEN 0 WHEN 'error' THEN 1 WHEN 'warning' THEN 2 ELSE 3 END,
+        occurrence_count DESC
+      LIMIT 5
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING id, fingerprint, source, severity, message, sample_stack,
+              occurrence_count, first_seen, last_seen
   ` as ErrorGroup[];
 
   if (groups.length === 0) return 0;
-
-  // Mark as analyzing
-  const ids = groups.map(g => g.id);
-  await sql`UPDATE error_groups SET status = 'analyzing' WHERE id = ANY(${ids})`;
 
   let analyzed = 0;
   for (const group of groups) {

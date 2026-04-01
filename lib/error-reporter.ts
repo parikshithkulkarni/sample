@@ -18,13 +18,20 @@ export function computeFingerprint(source: string, message: string, stack?: stri
   return createHash('sha256').update(`${source}:${normalized}:${firstFrame}`).digest('hex').slice(0, 32);
 }
 
+// Guard against circular reporting (logger.error -> reportError -> DB fails -> logger.error -> ...)
+let _reporting = false;
+
 /**
  * Report an error to the monitoring database.
  * Fire-and-forget — never throws, never blocks the caller.
  */
 export function reportError(report: ErrorReport): void {
+  if (_reporting) return; // break circular loop
+  _reporting = true;
   _persistError(report).catch(() => {
     // Intentionally swallowed — monitoring must never crash the app
+  }).finally(() => {
+    _reporting = false;
   });
 }
 
@@ -46,6 +53,7 @@ async function _persistError(report: ErrorReport): Promise<void> {
     RETURNING id, last_seen, occurrence_count
   `;
 
+  if (!groups[0]) return;
   const group = groups[0] as { id: string; last_seen: string; occurrence_count: number };
 
   // Only insert individual events if not flooding (max 1 event per group per 10s)

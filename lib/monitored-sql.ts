@@ -16,7 +16,8 @@ export async function monitoredSql(
   try {
     return await sql(strings, ...values);
   } catch (err) {
-    const queryPreview = strings.join('$').slice(0, 200);
+    // Only log the SQL template (static parts), never interpolated values
+    const queryPreview = strings[0]?.slice(0, 200) ?? 'unknown query';
     reportError({
       source: 'db',
       severity: 'error',
