@@ -6,6 +6,7 @@ import TaxReturnUS from '@/components/tax-return-us';
 import TaxReturnIndia from '@/components/tax-return-india';
 import { US_DEFAULT, INDIA_DEFAULT } from '@/lib/tax-data';
 import type { UsData, IndiaData, TaxSources } from '@/lib/tax-data';
+import { useToast } from '@/components/toast';
 
 type Country = 'US' | 'India';
 
@@ -56,6 +57,7 @@ function timeAgo(iso: string | null) {
 }
 
 export default function TaxReturnsPage() {
+  const { addToast } = useToast();
   const [year, setYear] = useState(CURRENT_YEAR - 1);
   const [country, setCountry] = useState<Country>('US');
   const [taxReturn, setTaxReturn] = useState<TaxReturn | null>(null);
@@ -95,13 +97,23 @@ export default function TaxReturnsPage() {
     if (!taxReturn) return;
     setSyncing(true);
     try {
+      // Step 1: Re-extract documents (writes correct tax_data)
+      const extractRes = await fetch('/api/documents/extract-all', { method: 'POST' });
+      if (!extractRes.ok) {
+        addToast(`Extract failed: ${extractRes.status}`, 'error');
+      }
+      // Step 2: Sync from accounts/rental records
       const res = await fetch('/api/tax-returns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ year, country }),
       });
+      if (!res.ok) throw new Error(`Sync failed: ${res.status}`);
       const updated = await res.json() as TaxReturn;
       setTaxReturn({ ...updated, sources: updated.sources ?? {}, data: withDefaults(updated.data, country) });
+      addToast('Synced from documents', 'success');
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : 'Sync failed', 'error');
     } finally {
       setSyncing(false);
     }
