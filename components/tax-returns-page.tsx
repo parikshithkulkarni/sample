@@ -95,15 +95,8 @@ export default function TaxReturnsPage() {
 
   async function syncFromDocs() {
     if (!taxReturn) return;
-    alert('Sync started — this confirms new code is deployed');
     setSyncing(true);
     try {
-      // Step 1: Re-extract documents (writes correct tax_data)
-      const extractRes = await fetch('/api/documents/extract-all', { method: 'POST' });
-      if (!extractRes.ok) {
-        addToast(`Extract failed: ${extractRes.status}`, 'error');
-      }
-      // Step 2: Sync from accounts/rental records
       const res = await fetch('/api/tax-returns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

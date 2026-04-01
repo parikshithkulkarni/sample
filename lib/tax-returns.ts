@@ -159,8 +159,8 @@ export async function syncTaxReturnsFromAccounts(forceYear?: number): Promise<vo
       SELECT
         COALESCE(SUM(rent_collected), 0)::numeric AS total_rent,
         COALESCE(SUM(mortgage_pmt), 0)::numeric AS total_mortgage,
-        COALESCE(SUM((SELECT COALESCE(SUM(v::numeric), 0) FROM jsonb_each_text(expenses) WHERE key = 'property_tax')), 0)::numeric AS total_property_tax,
-        COALESCE(SUM((SELECT COALESCE(SUM(v::numeric), 0) FROM jsonb_each_text(expenses) WHERE key = 'insurance')), 0)::numeric AS total_insurance
+        COALESCE(SUM((SELECT COALESCE(SUM(value::numeric), 0) FROM jsonb_each_text(expenses) WHERE key = 'property_tax')), 0)::numeric AS total_property_tax,
+        COALESCE(SUM((SELECT COALESCE(SUM(value::numeric), 0) FROM jsonb_each_text(expenses) WHERE key = 'insurance')), 0)::numeric AS total_insurance
       FROM rental_records WHERE year = ${taxYear}
     ` as { total_rent: string; total_mortgage: string; total_property_tax: string; total_insurance: string }[];
 
